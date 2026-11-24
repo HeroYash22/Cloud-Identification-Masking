@@ -5,6 +5,7 @@ interactive map tile generation, and accuracy calculation over the Shahdara AOI.
 Falls back safely with descriptive status if GEE is unauthenticated.
 """
 import os
+import concurrent.futures
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 from app.constants import AOI, BASELINE_METRICS
@@ -12,6 +13,16 @@ from app.constants import AOI, BASELINE_METRICS
 # Track GEE initialization state
 _gee_initialized = False
 _gee_init_error: Optional[str] = None
+_thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
+
+def run_with_timeout(func, *args, timeout_sec: float = 8.0, default=None):
+    """Executes a blocking function with a hard timeout to prevent deadlocks."""
+    future = _thread_pool.submit(func, *args)
+    try:
+        return future.result(timeout=timeout_sec)
+    except Exception:
+        return default
 
 
 def init_gee() -> bool:
@@ -70,39 +81,45 @@ def get_gee_status() -> Dict[str, Any]:
 def get_latest_sentinel_scene(aoi_bbox: list) -> Dict[str, Any]:
     """
     Finds the latest Sentinel-2 L2A scene passing over the AOI in the last 14 days.
-    In Live Mode, queries Earth Engine; in Demo Mode, returns the verified scene date.
+    In Live Mode, queries Earth Engine with an 8-second timeout; in Demo Mode, returns the verified scene date.
     """
+    def _query_gee():
+        import ee
+        geom = ee.Geometry.Rectangle(aoi_bbox)
+        now = datetime.utcnow()
+        start_date = (now - timedelta(days=14)).strftime("%Y-%m-%d")
+        end_date = now.strftime("%Y-%m-%d")
+
+        s2_col = (
+            ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+            .filterBounds(geom)
+            .filterDate(start_date, end_date)
+            .sort("system:time_start", False)
+        )
+
+        count = s2_col.size().getInfo()
+        if count > 0:
+            latest_img = ee.Image(s2_col.first())
+            time_start = latest_img.get("system:time_start").getInfo()
+            scene_date = datetime.utcfromtimestamp(time_start / 1000).strftime("%Y-%m-%d")
+            cloud_pct = latest_img.get("CLOUDY_PIXEL_PERCENTAGE").getInfo()
+            scene_id = latest_img.id().getInfo()
+
+            return {
+                "date": scene_date,
+                "scene_id": scene_id,
+                "cloud_pct": round(float(cloud_pct or 0.0), 2),
+                "live": True,
+                "message": f"Found latest Sentinel-2 pass: {scene_date} ({cloud_pct:.1f}% cloud)",
+            }
+        return None
+
     if init_gee():
         try:
-            import ee
-            geom = ee.Geometry.Rectangle(aoi_bbox)
-            now = datetime.utcnow()
-            start_date = (now - timedelta(days=14)).strftime("%Y-%m-%d")
-            end_date = now.strftime("%Y-%m-%d")
-
-            s2_col = (
-                ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-                .filterBounds(geom)
-                .filterDate(start_date, end_date)
-                .sort("system:time_start", False)
-            )
-
-            count = s2_col.size().getInfo()
-            if count > 0:
-                latest_img = ee.Image(s2_col.first())
-                time_start = latest_img.get("system:time_start").getInfo()
-                scene_date = datetime.utcfromtimestamp(time_start / 1000).strftime("%Y-%m-%d")
-                cloud_pct = latest_img.get("CLOUDY_PIXEL_PERCENTAGE").getInfo()
-                scene_id = latest_img.id().getInfo()
-
-                return {
-                    "date": scene_date,
-                    "scene_id": scene_id,
-                    "cloud_pct": round(float(cloud_pct or 0.0), 2),
-                    "live": True,
-                    "message": f"Found latest Sentinel-2 pass: {scene_date} ({cloud_pct:.1f}% cloud)",
-                }
-        except Exception as e:
+            res = run_with_timeout(_query_gee, timeout_sec=8.0)
+            if res:
+                return res
+        except Exception:
             pass
 
     # Graceful fallback to verified pass

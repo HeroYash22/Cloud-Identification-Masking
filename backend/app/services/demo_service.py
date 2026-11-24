@@ -6,7 +6,7 @@ In live mode, seamlessly queries Google Earth Engine via gee_service.py.
 """
 import os
 from typing import Dict, Any, List
-from app.constants import BASELINE_METRICS, AOI
+from app.constants import BASELINE_METRICS, AOI, LULC_CLASSES
 
 
 def _is_live() -> bool:
@@ -122,18 +122,14 @@ def threshold_sensitivity(tau_min: float = 0.50, tau_max: float = 0.90, steps: i
 
 
 # ---------------------------------------------------------------------------
-# LULC & Change Detection (demo tile URLs)
+# LULC & Change Detection (derived from shared constants)
 # ---------------------------------------------------------------------------
 
-DEMO_LULC_T1 = {
-    "Water": 0.6, "Trees": 4.3, "Grass": 9.3, "Flooded Veg.": 0.0,
-    "Crops": 0.0, "Shrub & Scrub": 0.0, "Built Area": 78.0,
-    "Bare Ground": 7.8, "Snow & Ice": 0.0,
-}
+DEMO_LULC_T1 = {c["name"]: c["baseline_pct"] for c in LULC_CLASSES}
 DEMO_LULC_T2 = {
-    "Water": 0.5, "Trees": 4.0, "Grass": 8.9, "Flooded Veg.": 0.0,
-    "Crops": 0.0, "Shrub & Scrub": 0.0, "Built Area": 78.6,
-    "Bare Ground": 8.0, "Snow & Ice": 0.0,
+    c["name"]: round(c["baseline_pct"] * (1.008 if c["name"] == "Built Area" else 0.96), 1)
+    if c["baseline_pct"] > 0 else 0.0
+    for c in LULC_CLASSES
 }
 
 # Atmospheric cloud misclassification drift
