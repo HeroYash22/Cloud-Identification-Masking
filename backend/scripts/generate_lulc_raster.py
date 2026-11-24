@@ -14,6 +14,11 @@ import requests
 import numpy as np
 from PIL import Image, ImageDraw
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
+geojson_path = os.path.join(PROJECT_ROOT, "frontend", "public", "shahdara_lulc.geojson")
+out_png = os.path.join(PROJECT_ROOT, "frontend", "public", "shahdara_lulc.png")
+
 AOI_SOUTH = 28.6275
 AOI_NORTH = 28.6725
 AOI_WEST = 77.2745
@@ -42,19 +47,28 @@ num_tiles_x = (x_end - x_start + 1)
 num_tiles_y = (y_end - y_start + 1)
 stitched_img = Image.new('RGB', (num_tiles_x * tile_w, num_tiles_y * tile_h))
 headers = {'User-Agent': 'ShahdaraSatProject/1.0 (academic minor project)'}
+failed_tiles = []
 
-for xi in range(x_start, x_end + 1):
-    for yi in range(y_start, y_end + 1):
-        url = f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{ZOOM}/{yi}/{xi}"
-        try:
-            r = requests.get(url, headers=headers, timeout=10)
-            if r.status_code == 200:
+with requests.Session() as session:
+    session.headers.update(headers)
+    for xi in range(x_start, x_end + 1):
+        for yi in range(y_start, y_end + 1):
+            url = f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{ZOOM}/{yi}/{xi}"
+            try:
+                r = session.get(url, timeout=10)
+                r.raise_for_status()
                 t_img = Image.open(io.BytesIO(r.content)).convert('RGB')
                 pos_x = (xi - x_start) * tile_w
                 pos_y = (yi - y_start) * tile_h
                 stitched_img.paste(t_img, (pos_x, pos_y))
-        except Exception as e:
-            print(f"Error tile {ZOOM}/{yi}/{xi}: {e}")
+            except Exception as e:
+                failed_tiles.append((ZOOM, yi, xi, str(e)))
+
+if failed_tiles:
+    raise RuntimeError(
+        f"Failed to fetch {len(failed_tiles)} tile(s): {failed_tiles}. "
+        "Aborting to avoid classifying unrendered black canvas as water."
+    )
 
 crop_x1 = int(round((x_min_f - x_start) * tile_w))
 crop_y1 = int(round((y_min_f - y_start) * tile_h))
@@ -83,9 +97,20 @@ valid_mask = rgb_max > 0
 saturation[valid_mask] = (rgb_max[valid_mask] - rgb_min[valid_mask]) / rgb_max[valid_mask]
 
 # Load OSM features (excluding any artificial linear drain lines)
-geojson_path = r"C:\Users\admin\.gemini\antigravity\scratch\shahdara-sat-app\frontend\public\shahdara_lulc.geojson"
 park_mask = np.zeros((height, width), dtype=bool)
 bare_mask = np.zeros((height, width), dtype=bool)
+
+def coords_to_pixels(rings):
+    px_rings = []
+    for ring in rings:
+        px_ring = []
+        for pt in ring:
+            lon, lat = pt[0], pt[1]
+            px = int(round(((lon - AOI_WEST) / (AOI_EAST - AOI_WEST)) * width))
+            py = int(round(((AOI_NORTH - lat) / (AOI_NORTH - AOI_SOUTH)) * height))
+            px_ring.append((px, py))
+        px_rings.append(px_ring)
+    return px_rings
 
 if os.path.exists(geojson_path):
     with open(geojson_path, "r", encoding="utf-8") as f:
@@ -101,27 +126,17 @@ if os.path.exists(geojson_path):
         geom = feat.get("geometry", {})
         poly_img = Image.new('L', (width, height), 0)
         draw = ImageDraw.Draw(poly_img)
-        
-        def coords_to_pixels(rings):
-            px_rings = []
-            for ring in rings:
-                px_ring = []
-                for pt in ring:
-                    lon, lat = pt[0], pt[1]
-                    px = int(round(((lon - AOI_WEST) / (AOI_EAST - AOI_WEST)) * width))
-                    py = int(round(((AOI_NORTH - lat) / (AOI_NORTH - AOI_SOUTH)) * height))
-                    px_ring.append((px, py))
-                px_rings.append(px_ring)
-            return px_rings
 
         if geom.get("type") == "Polygon":
             rings = coords_to_pixels(geom.get("coordinates", []))
             for r in rings:
-                draw.polygon(r, fill=255)
+                if len(r) >= 3:
+                    draw.polygon(r, fill=255)
         elif geom.get("type") == "MultiPolygon":
             for poly in geom.get("coordinates", []):
                 for r in coords_to_pixels(poly):
-                    draw.polygon(r, fill=255)
+                    if len(r) >= 3:
+                        draw.polygon(r, fill=255)
         
         mask_arr = np.array(poly_img) > 128
         if cat in ["trees", "grass"]:
@@ -196,7 +211,6 @@ print(f"Built Area : {cnt_built:7d} ({pct_built:5.1f}%)")
 print(f"Sum        : {pct_water + pct_trees + pct_grass + pct_bare + pct_built:5.1f}%")
 
 # Save PNG with alpha
-out_png = r"C:\Users\admin\.gemini\antigravity\scratch\shahdara-sat-app\frontend\public\shahdara_lulc.png"
 out_img = Image.fromarray(lulc_rgba, mode='RGBA')
 out_img.save(out_png, optimize=True)
 print(f"\nSuccessfully saved updated raster to {out_png}")

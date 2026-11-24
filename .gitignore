@@ -18,3 +18,12 @@ Thumbs.db
 *.log
 
 unslop/
+
+.venv/
+node_modules/
+
+.venv/
+node_modules/
+
+.venv/
+node_modules/
