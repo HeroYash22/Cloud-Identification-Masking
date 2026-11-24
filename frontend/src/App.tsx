@@ -1,8 +1,8 @@
 import { useState, useMemo, useEffect } from 'react'
-import { MapPanel }        from './components/MapPanel'
-import { LeftPanel }       from './components/LeftPanel'
-import { RightPanel }      from './components/RightPanel'
-import { TopBar }          from './components/TopBar'
+import { MapPanel } from './components/MapPanel'
+import { LeftPanel } from './components/LeftPanel'
+import { RightPanel } from './components/RightPanel'
+import { TopBar } from './components/TopBar'
 import {
   interpolateCloudCover,
   interpolateMetrics,
@@ -196,11 +196,11 @@ function App() {
     })
   }
 
-  const activeSweep   = useMemo(() => getActiveSweep(state.dateT1),                  [state.dateT1])
-  const demoCloud     = useMemo(() => interpolateCloudCover(state.tau, state.dateT1), [state.tau, state.dateT1])
-  const cloudCoverT2  = useMemo(() => interpolateCloudCover(state.tau, state.dateT2), [state.tau, state.dateT2])
-  const demoMetrics   = useMemo(() => interpolateMetrics(state.tau, state.dateT1),    [state.tau, state.dateT1])
-  const sensitivity   = useMemo(() => buildSensitivitySeries(state.dateT1),           [state.dateT1])
+  const activeSweep = useMemo(() => getActiveSweep(state.dateT1), [state.dateT1])
+  const demoCloud = useMemo(() => interpolateCloudCover(state.tau, state.dateT1), [state.tau, state.dateT1])
+  const cloudCoverT2 = useMemo(() => interpolateCloudCover(state.tau, state.dateT2), [state.tau, state.dateT2])
+  const demoMetrics = useMemo(() => interpolateMetrics(state.tau, state.dateT1), [state.tau, state.dateT1])
+  const sensitivity = useMemo(() => buildSensitivitySeries(state.dateT1), [state.dateT1])
 
   const cloudCover = state.liveData ? state.liveData.cloudCover : demoCloud
   const metrics = state.liveData
@@ -213,8 +213,7 @@ function App() {
     : demoMetrics
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden"
-         style={{ background: 'var(--navy)', color: '#e2e8f0' }}>
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0f0f10] text-[#ededed]">
       <TopBar
         demoMode={state.demoMode}
         onToggleDemo={v => patch({ demoMode: v })}
@@ -224,21 +223,32 @@ function App() {
       {/* Live GEE Status / Error Banner */}
       {!state.demoMode && (state.liveLoading || state.liveError || state.liveData) && (
         <div
-          className={`px-4 py-1 text-xs flex items-center justify-between border-b ${
+          className={`px-4 py-1.5 text-xs flex items-center justify-between border-b ${
             state.liveError
-              ? 'bg-red-950/80 border-red-700 text-red-200'
+              ? 'bg-[#1c1415] border-red-500/30 text-red-300'
               : state.liveLoading
-              ? 'bg-teal-950/80 border-teal-700 text-teal-200'
-              : 'bg-emerald-950/80 border-emerald-700 text-emerald-200'
+              ? 'bg-[#14181a] border-white/10 text-[#a1a1a6]'
+              : 'bg-[#121c17] border-emerald-500/25 text-emerald-300'
           }`}
         >
-          <span>
-            {state.liveLoading
-              ? `🛰️ Querying Google Earth Engine for T1=${state.dateT1}, T2=${state.dateT2} (τ = ${state.tau.toFixed(2)})...`
-              : state.liveError
-              ? `⚠️ Live GEE Mode unavailable (${state.liveError}) — showing fallback sweep.`
-              : `✅ Live GEE Streaming: ${state.liveData?.date} (${state.liveData?.sceneId}) · CS+ Cloud = ${state.liveData?.cloudCover}%`}
-          </span>
+          <div className="flex items-center gap-2">
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${
+                state.liveError
+                  ? 'bg-red-400'
+                  : state.liveLoading
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-emerald-400'
+              }`}
+            />
+            <span className="font-mono text-[11px]">
+              {state.liveLoading
+                ? `Querying Google Earth Engine (T1=${state.dateT1}, T2=${state.dateT2}, τ=${state.tau.toFixed(2)})`
+                : state.liveError
+                ? `Live GEE mode unavailable (${state.liveError}) — fallback active`
+                : `Live GEE: ${state.liveData?.date} (${state.liveData?.sceneId}) · CS+ Cloud = ${state.liveData?.cloudCover}%`}
+            </span>
+          </div>
         </div>
       )}
 

@@ -1,6 +1,16 @@
 import { useState } from 'react'
 import type { AppState, PipelineStage } from '../App'
-import { Download, Sparkles, Zap, CheckCircle2 } from 'lucide-react'
+import {
+  Download,
+  SlidersHorizontal,
+  RefreshCw,
+  CheckCircle2,
+  Layers,
+  Cloud,
+  ShieldCheck,
+  Map,
+  GitCompare,
+} from 'lucide-react'
 import {
   type MaskMethod,
   type ScenarioPreset,
@@ -16,18 +26,18 @@ interface Props {
   onApplyPreset: (preset: ScenarioPreset) => void
 }
 
-const STAGES: { id: PipelineStage; label: string; icon: string }[] = [
-  { id: 'rgb',       label: 'RGB Composite',      icon: '🛰️'  },
-  { id: 'cloudmask', label: 'Cloud Mask',          icon: '☁️'  },
-  { id: 'validgate', label: 'Valid-Pixel Gate',    icon: '✅'  },
-  { id: 'lulc',      label: 'LULC Map',            icon: '🗺️'  },
-  { id: 'change',    label: 'Change Detection',    icon: '🔄'  },
+const STAGES: { id: PipelineStage; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
+  { id: 'rgb',       label: 'RGB composite',      icon: Layers },
+  { id: 'cloudmask', label: 'Cloud mask',         icon: Cloud },
+  { id: 'validgate', label: 'Valid-pixel gate',   icon: ShieldCheck },
+  { id: 'lulc',      label: 'LULC classification',icon: Map },
+  { id: 'change',    label: 'Bitemporal change',  icon: GitCompare },
 ]
 
-const MASK_METHODS: { id: MaskMethod; label: string }[] = [
-  { id: 'csp', label: 'Cloud Score+'     },
-  { id: 'scl', label: 'Sen2Cor SCL'      },
-  { id: 'qa',  label: 'Landsat QA_PIXEL' },
+const MASK_METHODS: { id: MaskMethod; label: string; dotColor: string }[] = [
+  { id: 'csp', label: 'Cloud Score+',     dotColor: '#38bdf8' },
+  { id: 'scl', label: 'Sen2Cor SCL',      dotColor: '#34d399' },
+  { id: 'qa',  label: 'Landsat QA_PIXEL', dotColor: '#fbbf24' },
 ]
 
 function getLocalTodayISO(): string {
@@ -46,10 +56,7 @@ function clampToToday(dateStr: string, todayISO: string): string {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-4">
-      <div
-        className="text-xs font-semibold uppercase tracking-widest mb-2 pb-1 border-b"
-        style={{ color: 'var(--teal)', borderColor: 'var(--border)' }}
-      >
+      <div className="text-[11px] font-medium text-[#a1a1a6] mb-2 pb-1 border-b border-white/8">
         {title}
       </div>
       {children}
@@ -108,7 +115,7 @@ export function LeftPanel({ state, patch, cloudCover, activeSweep, onApplyPreset
       cloud_cover_pct: cloudCover,
       stage: state.stage,
       gated: state.gated,
-      note: 'AI Satellite Image Processing Prototype — B.Tech Minor Project (10 m GEE Pixel Sweep)',
+      note: 'Satellite Image Processing Pipeline (10 m GEE Pixel Sweep)',
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url  = URL.createObjectURL(blob)
@@ -120,21 +127,15 @@ export function LeftPanel({ state, patch, cloudCover, activeSweep, onApplyPreset
   }
 
   return (
-    <aside
-      className="w-68 shrink-0 overflow-y-auto p-3 flex flex-col border-r"
-      style={{ background: 'var(--panel)', borderColor: 'var(--border)' }}
-    >
-      {/* ⭐ Evaluation / Viva Presets Card */}
-      <div
-        className="mb-4 p-2.5 rounded-lg border shadow-sm"
-        style={{ background: 'rgba(15,118,110,0.15)', borderColor: 'var(--teal-dim)' }}
-      >
-        <div className="flex items-center gap-1.5 text-xs font-bold text-teal-300 mb-1.5 uppercase tracking-wide">
-          <Sparkles size={13} className="text-teal-400" />
-          <span>Evaluation Scenarios</span>
+    <aside className="w-72 shrink-0 overflow-y-auto p-3 flex flex-col bg-[#141415] border-r border-white/8">
+      {/* Evaluation Presets Card */}
+      <div className="mb-4 p-2.5 rounded-lg bg-[#19191b] border border-white/8">
+        <div className="flex items-center gap-1.5 text-xs font-medium text-[#ededed] mb-1">
+          <SlidersHorizontal size={13} className="text-[#a1a1a6]" />
+          <span>Evaluation scenarios</span>
         </div>
-        <p className="text-[11px] text-slate-300 mb-2 leading-snug">
-          One-click presets backed by 10 m GEE pixel sweeps:
+        <p className="text-[11px] text-[#71717a] mb-2 leading-snug">
+          One-click scenarios calibrated with 10 m GEE pixel sweeps:
         </p>
 
         <div className="flex flex-col gap-1.5">
@@ -142,15 +143,15 @@ export function LeftPanel({ state, patch, cloudCover, activeSweep, onApplyPreset
             <button
               key={preset.id}
               onClick={() => onApplyPreset(preset)}
-              className="text-left p-1.5 rounded text-xs bg-slate-900/60 hover:bg-slate-800 border border-slate-700/70 hover:border-teal-500/80 transition-all cursor-pointer group"
+              className="text-left p-2 rounded-md text-xs bg-[#202023] hover:bg-[#27272a] border border-white/5 hover:border-white/15 transition-colors cursor-pointer group"
             >
-              <div className="flex items-center justify-between font-semibold text-white group-hover:text-teal-300">
+              <div className="flex items-center justify-between font-medium text-[#ededed] group-hover:text-white">
                 <span>{preset.title}</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded bg-teal-900/80 text-teal-200 border border-teal-700/50">
+                <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[#2c2c30] text-[#a1a1a6]">
                   {preset.badge}
                 </span>
               </div>
-              <div className="text-[10.5px] text-slate-400 mt-0.5 line-clamp-2">
+              <div className="text-[10.5px] text-[#71717a] mt-0.5 line-clamp-2">
                 {preset.subtitle}
               </div>
             </button>
@@ -158,51 +159,50 @@ export function LeftPanel({ state, patch, cloudCover, activeSweep, onApplyPreset
         </div>
       </div>
 
-      {/* ---- ① Pipeline Stage ---- */}
-      <Section title="① Pipeline Stage">
+      {/* Pipeline Stage */}
+      <Section title="Pipeline stage">
         <div className="flex flex-col gap-1">
-          {STAGES.map(s => (
-            <button
-              key={s.id}
-              onClick={() => patch({ stage: s.id })}
-              className={`flex items-center gap-2 px-2 py-1.5 rounded text-xs text-left transition-all cursor-pointer ${
-                state.stage === s.id
-                  ? 'font-semibold shadow'
-                  : 'opacity-70 hover:opacity-100 hover:bg-slate-800'
-              }`}
-              style={
-                state.stage === s.id
-                  ? { background: 'var(--teal-dim)', color: '#fff' }
-                  : { color: '#cbd5e1' }
-              }
-            >
-              <span>{s.icon}</span>
-              {s.label}
-            </button>
-          ))}
+          {STAGES.map(s => {
+            const Icon = s.icon
+            const active = state.stage === s.id
+            return (
+              <button
+                key={s.id}
+                onClick={() => patch({ stage: s.id })}
+                className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-left transition-colors cursor-pointer ${
+                  active
+                    ? 'bg-[#232325] text-white border border-white/12 font-medium shadow-sm'
+                    : 'text-[#a1a1a6] hover:text-[#ededed] hover:bg-[#1a1a1c]'
+                }`}
+              >
+                <Icon size={14} className={active ? 'text-[#10b981]' : 'text-[#71717a]'} />
+                <span>{s.label}</span>
+              </button>
+            )
+          })}
         </div>
 
         {/* Ungated / Gated toggle for LULC & Change */}
         {(state.stage === 'lulc' || state.stage === 'change') && (
-          <div className="mt-2.5 p-1 rounded bg-slate-900/80 border border-slate-700">
-            <div className="text-[10px] text-slate-400 mb-1 px-1 flex justify-between">
-              <span>Cloud Gate (M_valid):</span>
-              <span className={state.gated ? 'text-teal-400 font-bold' : 'text-amber-400 font-bold'}>
-                {state.gated ? 'ACTIVE' : 'OFF'}
+          <div className="mt-2.5 p-2 rounded-md bg-[#19191b] border border-white/8">
+            <div className="text-[10px] text-[#71717a] mb-1.5 flex justify-between">
+              <span>Cloud gate (M_valid):</span>
+              <span className={`font-mono font-medium ${state.gated ? 'text-[#10b981]' : 'text-amber-400'}`}>
+                {state.gated ? 'Active' : 'Bypassed'}
               </span>
             </div>
-            <div className="flex rounded overflow-hidden border" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex rounded-md overflow-hidden p-0.5 bg-[#202023] border border-white/5">
               {(['ungated', 'gated'] as const).map(g => (
                 <button
                   key={g}
                   onClick={() => patch({ gated: g === 'gated' })}
-                  className={`flex-1 py-1 text-xs font-medium transition-all cursor-pointer ${
+                  className={`flex-1 py-1 text-xs font-medium rounded transition-colors cursor-pointer ${
                     (g === 'gated') === state.gated
-                      ? 'bg-teal-700 text-white shadow'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      ? 'bg-[#2c2c30] text-[#ededed] shadow-sm'
+                      : 'text-[#71717a] hover:text-[#ededed]'
                   }`}
                 >
-                  {g === 'ungated' ? '⚠️ Ungated' : '✅ Cloud-Gated'}
+                  {g === 'ungated' ? 'Ungated baseline' : 'Cloud-gated'}
                 </button>
               ))}
             </div>
@@ -210,18 +210,18 @@ export function LeftPanel({ state, patch, cloudCover, activeSweep, onApplyPreset
         )}
       </Section>
 
-      {/* ---- ② Scene Dates ---- */}
-      <Section title="② Sentinel-2 Dates">
+      {/* Sentinel-2 Scenes */}
+      <Section title="Sentinel-2 scenes">
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-slate-400">T1 (evaluation scene)</label>
+          <label className="text-[11px] text-[#71717a]">T1 (evaluation scene)</label>
           <button
             onClick={handleFetchLatest}
             disabled={fetchingLatest}
-            className="flex items-center gap-1 text-[10.5px] px-1.5 py-0.5 rounded text-teal-300 hover:bg-teal-950 border border-teal-800/80 transition-all cursor-pointer"
+            className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded text-[#a1a1a6] hover:text-[#ededed] bg-[#19191b] hover:bg-[#232325] border border-white/8 transition-colors cursor-pointer"
             title="Fetch the most recent Sentinel-2 pass up to today"
           >
-            <Zap size={10} className="text-amber-400" />
-            <span>{fetchingLatest ? 'Finding...' : 'Latest Pass'}</span>
+            <RefreshCw size={10} className={fetchingLatest ? 'animate-spin' : ''} />
+            <span>{fetchingLatest ? 'Finding...' : 'Latest pass'}</span>
           </button>
         </div>
         <input
@@ -230,23 +230,21 @@ export function LeftPanel({ state, patch, cloudCover, activeSweep, onApplyPreset
           max={todayISO}
           value={state.dateT1}
           onChange={e => handleDateChange('dateT1', e.target.value)}
-          className="w-full px-2 py-1 rounded text-xs mb-2 font-mono"
-          style={{ background: 'var(--slate)', color: '#e2e8f0', border: '1px solid var(--border)' }}
+          className="w-full px-2.5 py-1 rounded-md text-xs mb-2 font-mono bg-[#19191b] border border-white/10 text-[#ededed] focus:outline-none focus:border-white/20"
         />
 
-        <label className="text-xs text-slate-400 mb-0.5 block">T2 (comparison scene)</label>
+        <label className="text-[11px] text-[#71717a] mb-0.5 block">T2 (comparison scene)</label>
         <input
           type="date"
           min="2015-06-23"
           max={todayISO}
           value={state.dateT2}
           onChange={e => handleDateChange('dateT2', e.target.value)}
-          className="w-full px-2 py-1 rounded text-xs font-mono"
-          style={{ background: 'var(--slate)', color: '#e2e8f0', border: '1px solid var(--border)' }}
+          className="w-full px-2.5 py-1 rounded-md text-xs font-mono bg-[#19191b] border border-white/10 text-[#ededed] focus:outline-none focus:border-white/20"
         />
 
         {latestMsg && (
-          <div className="mt-1 text-[10px] text-teal-300 flex items-center gap-1 bg-teal-950/60 p-1 rounded border border-teal-800">
+          <div className="mt-1 text-[10px] text-[#10b981] flex items-center gap-1 bg-[#121c17] p-1.5 rounded border border-emerald-500/20">
             <CheckCircle2 size={11} />
             <span>{latestMsg}</span>
           </div>
@@ -255,37 +253,37 @@ export function LeftPanel({ state, patch, cloudCover, activeSweep, onApplyPreset
         <div className="mt-2 flex flex-col gap-1">
           <button
             onClick={() => patch({ dateT1: '2025-05-10', dateT2: '2025-01-23' })}
-            className={`text-[11px] w-full py-1 px-2 rounded border transition-all cursor-pointer text-left flex justify-between items-center ${
+            className={`text-[11px] w-full py-1 px-2 rounded-md border transition-colors cursor-pointer text-left flex justify-between items-center ${
               state.dateT1 === '2025-05-10'
-                ? 'border-teal-500 bg-teal-900/50 text-white font-semibold'
-                : 'border-teal-600/40 hover:bg-teal-900/40 text-teal-200'
+                ? 'border-white/20 bg-[#232325] text-white font-medium'
+                : 'border-white/5 bg-[#19191b] hover:bg-[#202023] text-[#a1a1a6]'
             }`}
           >
-            <span>Measured Primary: 10-May-2025</span>
-            <span className="text-[9.5px] font-mono text-teal-300">5.84% SCL</span>
+            <span>Primary: 10-May-2025</span>
+            <span className="text-[10px] font-mono text-[#71717a]">5.84% SCL</span>
           </button>
           <button
             onClick={() => patch({ dateT1: '2025-01-23', dateT2: '2025-05-10' })}
-            className={`text-[11px] w-full py-1 px-2 rounded border transition-all cursor-pointer text-left flex justify-between items-center ${
+            className={`text-[11px] w-full py-1 px-2 rounded-md border transition-colors cursor-pointer text-left flex justify-between items-center ${
               state.dateT1 === '2025-01-23'
-                ? 'border-teal-500 bg-teal-900/50 text-white font-semibold'
-                : 'border-slate-700 hover:bg-slate-800 text-slate-300'
+                ? 'border-white/20 bg-[#232325] text-white font-medium'
+                : 'border-white/5 bg-[#19191b] hover:bg-[#202023] text-[#a1a1a6]'
             }`}
           >
-            <span>Measured Haze: 23-Jan-2025</span>
-            <span className="text-[9.5px] font-mono text-slate-400">2.02% SCL</span>
+            <span>Haze: 23-Jan-2025</span>
+            <span className="text-[10px] font-mono text-[#71717a]">2.02% SCL</span>
           </button>
         </div>
-        <div className="mt-1.5 text-[10px] text-slate-400 font-mono truncate" title={activeSweep.sceneId}>
+        <div className="mt-1.5 text-[10px] text-[#71717a] font-mono truncate" title={activeSweep.sceneId}>
           Granule: {activeSweep.sceneId}
         </div>
       </Section>
 
-      {/* ---- ③ Cloud Score+ Threshold ---- */}
-      <Section title="③ Cloud Score+ Threshold">
-        <div className="flex justify-between text-xs mb-1">
-          <span className="text-slate-400 font-mono">τ = {state.tau.toFixed(2)}</span>
-          <span className="font-semibold" style={{ color: 'var(--teal)' }}>☁ {cloudCover.toFixed(2)}% Cloud</span>
+      {/* Cloud Score+ Threshold */}
+      <Section title="Cloud Score+ threshold">
+        <div className="flex justify-between text-xs mb-1 font-mono">
+          <span className="text-[#a1a1a6]">τ = {state.tau.toFixed(2)}</span>
+          <span className="text-[#10b981] font-medium">{cloudCover.toFixed(2)}% cloud</span>
         </div>
         <input
           type="range"
@@ -294,67 +292,75 @@ export function LeftPanel({ state, patch, cloudCover, activeSweep, onApplyPreset
           onChange={e => patch({ tau: parseFloat(e.target.value) })}
           className="w-full cursor-pointer"
         />
-        <div className="flex justify-between text-[10px] text-slate-500 mt-0.5">
+        <div className="flex justify-between text-[10px] text-[#71717a] mt-0.5 font-mono">
           <span>0.10 (Lenient)</span>
-          <span className="text-teal-400 font-medium">Default: 0.60</span>
+          <span className="text-[#a1a1a6]">Default: 0.60</span>
           <span>0.95 (Strict)</span>
         </div>
-        <p className="text-[10.5px] mt-1 text-slate-400">
-          Rule: <code className="text-teal-300 font-mono">cs_cdf &lt; τ</code> ⟹ flagged as cloud/shadow
+        <p className="text-[10.5px] mt-1.5 text-[#71717a] font-mono leading-tight">
+          Rule: cs_cdf &lt; τ ⟹ flagged as cloud/shadow
         </p>
       </Section>
 
-      {/* ---- ④ Reference Mask & Agreement ---- */}
-      <Section title="④ Reference Mask Comparison">
+      {/* Reference Mask Comparison */}
+      <Section title="Reference mask comparison">
         <div className="flex flex-col gap-1">
           {MASK_METHODS.map(m => (
             <button
               key={m.id}
               onClick={() => patch({ maskMethod: m.id })}
-              className={`px-2 py-1.5 rounded text-xs text-left border transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs text-left border transition-colors cursor-pointer ${
                 state.maskMethod === m.id
-                  ? 'border-teal-500 text-white font-semibold'
-                  : 'border-transparent text-slate-400 hover:text-white hover:bg-slate-800'
+                  ? 'border-white/20 bg-[#232325] text-white font-medium'
+                  : 'border-transparent text-[#a1a1a6] hover:text-[#ededed] hover:bg-[#1a1a1c]'
               }`}
-              style={state.maskMethod === m.id ? { background: 'rgba(45,212,191,0.12)' } : {}}
             >
-              {m.id === 'csp' ? '🔵' : m.id === 'scl' ? '🟢' : '🟡'} {m.label}
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: m.dotColor }} />
+              <span>{m.label}</span>
             </button>
           ))}
         </div>
 
         <button
           onClick={() => patch({ agreementMode: !state.agreementMode })}
-          className={`mt-2 w-full px-2 py-1.5 rounded text-xs border transition-all cursor-pointer ${
+          className={`mt-2 w-full px-2.5 py-1.5 rounded-md text-xs border transition-colors cursor-pointer text-left flex justify-between items-center ${
             state.agreementMode
-              ? 'border-purple-500 text-purple-200 font-semibold'
-              : 'border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800'
+              ? 'border-white/20 bg-[#232325] text-white font-medium'
+              : 'border-white/8 text-[#a1a1a6] hover:text-[#ededed] hover:bg-[#1a1a1c]'
           }`}
-          style={state.agreementMode ? { background: 'rgba(168,85,247,0.15)' } : {}}
         >
-          🔀 Agreement Overlay {state.agreementMode ? 'ON' : 'OFF'}
+          <span>Agreement overlay</span>
+          <span className="font-mono text-[10px] text-[#71717a]">{state.agreementMode ? 'ON' : 'OFF'}</span>
         </button>
         {state.agreementMode && (
-          <div className="mt-1.5 p-1.5 rounded bg-slate-900/80 border border-slate-700 text-[11px] space-y-1">
-            <div className="flex items-center"><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1.5" style={{ background: '#22c55e' }}/>Both flag cloud (Agreement)</div>
-            <div className="flex items-center"><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1.5" style={{ background: '#f472b6' }}/>Cloud Score+ only</div>
-            <div className="flex items-center"><span className="inline-block w-2.5 h-2.5 rounded-sm mr-1.5" style={{ background: '#60a5fa' }}/>Reference mask only</div>
+          <div className="mt-1.5 p-2 rounded-md bg-[#19191b] border border-white/8 text-[11px] space-y-1">
+            <div className="flex items-center text-[#a1a1a6]">
+              <span className="inline-block w-2 h-2 rounded-sm mr-2 bg-emerald-500" />
+              <span>Both flag cloud (Agreement)</span>
+            </div>
+            <div className="flex items-center text-[#a1a1a6]">
+              <span className="inline-block w-2 h-2 rounded-sm mr-2 bg-pink-500" />
+              <span>Cloud Score+ only</span>
+            </div>
+            <div className="flex items-center text-[#a1a1a6]">
+              <span className="inline-block w-2 h-2 rounded-sm mr-2 bg-blue-500" />
+              <span>Reference mask only</span>
+            </div>
           </div>
         )}
       </Section>
 
-      {/* ---- Export ---- */}
-      <div className="mt-auto pt-3 border-t" style={{ borderColor: 'var(--border)' }}>
+      {/* Export */}
+      <div className="mt-auto pt-3 border-t border-white/8">
         <button
           onClick={handleExport}
-          className="w-full flex items-center justify-center gap-2 py-2 rounded text-xs font-semibold transition-all hover:brightness-110 cursor-pointer shadow"
-          style={{ background: 'var(--teal-dim)', color: '#fff' }}
+          className="w-full flex items-center justify-center gap-2 py-2 rounded-md text-xs font-medium bg-[#ededed] text-[#0f0f10] hover:bg-white transition-colors cursor-pointer shadow-sm"
         >
           <Download size={13} />
-          Export Metadata Bundle (JSON)
+          <span>Export metadata bundle</span>
         </button>
-        <p className="text-[10px] text-center mt-1 text-slate-400">
-          QGIS GeoTIFF streaming enabled in Live GEE Mode
+        <p className="text-[10px] text-center mt-1.5 text-[#71717a]">
+          QGIS GeoTIFF streaming enabled in Live GEE mode
         </p>
       </div>
     </aside>

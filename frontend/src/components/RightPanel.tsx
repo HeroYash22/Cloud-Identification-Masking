@@ -4,17 +4,50 @@ import {
 } from 'recharts'
 import type { PipelineStage, AnalyticsTab } from '../App'
 import { LULC_CLASSES, FIELD_IMPACTS, ungatedPct, type MeasuredSceneSweep } from '../demoData'
-import { ShieldCheck, AlertTriangle } from 'lucide-react'
+import {
+  ShieldCheck,
+  AlertCircle,
+  Building2,
+  LandPlot,
+  Trees,
+  Droplets,
+  Activity,
+  AlertTriangle,
+} from 'lucide-react'
 
-interface KPICardProps { label: string; value: string; sub?: string; color?: string }
-function KPICard({ label, value, sub, color = '#2dd4bf' }: KPICardProps) {
+interface KPICardProps {
+  label: string
+  value: string
+  sub?: string
+  focal?: boolean
+}
+
+function KPICard({ label, value, sub, focal = false }: KPICardProps) {
   return (
-    <div className="rounded-lg p-2.5 flex flex-col" style={{ background: '#0d1b2a', border: '1px solid var(--border)' }}>
-      <span className="text-xs text-slate-400 mb-0.5">{label}</span>
-      <span className="text-xl font-bold font-mono" style={{ color }}>{value}</span>
-      {sub && <span className="text-xs text-slate-500 mt-0.5">{sub}</span>}
+    <div className={`rounded-md p-2.5 flex flex-col border ${
+      focal ? 'bg-[#19191b] border-white/20' : 'bg-[#19191b] border-white/8'
+    }`}>
+      <span className="text-[11px] text-[#71717a] mb-0.5">{label}</span>
+      <span className={`text-xl font-mono tabular-nums font-medium ${
+        focal ? 'text-[#10b981]' : 'text-[#ededed]'
+      }`}>
+        {value}
+      </span>
+      {sub && <span className="text-[10.5px] text-[#71717a] mt-0.5 font-mono">{sub}</span>}
     </div>
   )
+}
+
+function getFieldIcon(fieldName: string) {
+  switch (fieldName) {
+    case 'Urban Planning': return <Building2 size={13} className="text-[#a1a1a6]" />
+    case 'Agriculture': return <LandPlot size={13} className="text-[#a1a1a6]" />
+    case 'Disaster Response': return <AlertTriangle size={13} className="text-[#a1a1a6]" />
+    case 'Forestry': return <Trees size={13} className="text-[#a1a1a6]" />
+    case 'Water Management': return <Droplets size={13} className="text-[#a1a1a6]" />
+    case 'Air Quality': return <Activity size={13} className="text-[#a1a1a6]" />
+    default: return <Activity size={13} className="text-[#a1a1a6]" />
+  }
 }
 
 interface Props {
@@ -35,8 +68,8 @@ interface Props {
 const TABS: { id: AnalyticsTab; label: string }[] = [
   { id: 'metrics',     label: 'KPIs'         },
   { id: 'sensitivity', label: 'Sensitivity'  },
-  { id: 'lulc',        label: 'LULC'         },
-  { id: 'impact',      label: 'Multi-Field'  },
+  { id: 'lulc',        label: 'Land cover'   },
+  { id: 'impact',      label: 'Impact'       },
 ]
 
 export function RightPanel({
@@ -59,20 +92,18 @@ export function RightPanel({
   const unionCloudPct = Math.min(100, Math.round((cloudCover + cloudCoverT2) * 100) / 100)
 
   return (
-    <aside
-      className="w-76 shrink-0 overflow-y-auto p-3 flex flex-col border-l"
-      style={{ background: 'var(--panel)', borderColor: 'var(--border)' }}
-    >
+    <aside className="w-80 shrink-0 overflow-y-auto p-3 flex flex-col bg-[#141415] border-l border-white/8">
       {/* Tab switcher */}
-      <div className="flex rounded overflow-hidden border mb-3" style={{ borderColor: 'var(--border)' }}>
+      <div className="flex rounded-md p-0.5 bg-[#19191b] border border-white/8 mb-3">
         {TABS.map(t => (
           <button
             key={t.id}
             onClick={() => onTabChange(t.id)}
-            className={`flex-1 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-              activeTab === t.id ? 'text-white' : 'text-slate-400 hover:text-white'
+            className={`flex-1 py-1 text-xs font-medium rounded transition-colors cursor-pointer ${
+              activeTab === t.id
+                ? 'bg-[#27272a] text-[#ededed] shadow-sm'
+                : 'text-[#71717a] hover:text-[#ededed]'
             }`}
-            style={activeTab === t.id ? { background: 'var(--teal-dim)' } : {}}
           >
             {t.label}
           </button>
@@ -83,64 +114,55 @@ export function RightPanel({
       {activeTab === 'metrics' && (
         <div className="space-y-2">
           {/* Scene provenance banner */}
-          <div
-            className="rounded-lg p-2 text-[11px]"
-            style={{ background: '#0d1b2a', border: '1px solid var(--border)' }}
-          >
+          <div className="rounded-md p-2.5 text-[11px] bg-[#19191b] border border-white/8">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-teal-300">Measured GEE Sweep ({activeSweep.scaleM} m)</span>
-              <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-teal-950 text-teal-200 border border-teal-800">
+              <span className="font-medium text-[#ededed]">Measured GEE sweep ({activeSweep.scaleM} m)</span>
+              <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[#27272a] text-[#a1a1a6]">
                 {activeSweep.date}
               </span>
             </div>
-            <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5" title={activeSweep.sceneId}>
+            <div className="text-[10px] text-[#71717a] font-mono truncate mt-1" title={activeSweep.sceneId}>
               ID: {activeSweep.sceneId}
             </div>
           </div>
 
           {/* Valid-Pixel Gate / Change Detection Callout */}
           {(stage === 'change' || stage === 'validgate') && (
-            <div
-              className={`p-2.5 rounded-lg border text-xs ${
-                gated
-                  ? 'bg-teal-950/40 border-teal-500/80 text-teal-100'
-                  : 'bg-amber-950/40 border-amber-500/80 text-amber-100'
-              }`}
-            >
-              <div className="flex items-center justify-between font-bold mb-1">
+            <div className="p-2.5 rounded-md border border-white/10 bg-[#19191b] text-xs">
+              <div className="flex items-center justify-between font-medium mb-1.5">
                 <div className="flex items-center gap-1.5">
                   {gated ? (
                     <>
-                      <ShieldCheck size={16} className="text-teal-400" />
-                      <span className="text-teal-300">Valid-Pixel Gate (M_valid)</span>
+                      <ShieldCheck size={14} className="text-[#10b981]" />
+                      <span className="text-[#ededed]">Valid-pixel gate (M_valid)</span>
                     </>
                   ) : (
                     <>
-                      <AlertTriangle size={16} className="text-amber-400" />
-                      <span className="text-amber-300">Ungated Baseline</span>
+                      <AlertCircle size={14} className="text-amber-400" />
+                      <span className="text-[#ededed]">Ungated baseline</span>
                     </>
                   )}
                 </div>
-                <span className="text-[9.5px] font-mono px-1.5 py-0.2 rounded bg-slate-900 text-slate-300 border border-slate-700">
+                <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-[#27272a] text-[#a1a1a6]">
                   {dateT1} → {dateT2}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-300 leading-relaxed mb-2">
+              <p className="text-[11px] text-[#a1a1a6] leading-relaxed mb-2 font-mono">
                 {gated
-                  ? `M_valid = NOT(M_${dateT1} ∪ M_${dateT2}) excludes ${unionCloudPct}% combined cloud pixels across T1 (${cloudCover.toFixed(2)}%) & T2 (${cloudCoverT2.toFixed(2)}%).`
-                  : `Ungated comparison: unmasked clouds on T1 (${cloudCover.toFixed(2)}%) & T2 (${cloudCoverT2.toFixed(2)}%) inflate apparent change.`}
+                  ? `M_valid excludes ${unionCloudPct}% cloud union across T1 (${cloudCover.toFixed(2)}%) & T2 (${cloudCoverT2.toFixed(2)}%).`
+                  : `Ungated comparison: unmasked clouds on T1 (${cloudCover.toFixed(2)}%) & T2 (${cloudCoverT2.toFixed(2)}%) induce apparent drift.`}
               </p>
               <div className="grid grid-cols-2 gap-2 text-center text-[11px]">
-                <div className="p-1.5 rounded bg-slate-900/80 border border-slate-700">
-                  <div className="text-slate-400 text-[10px]">Illustrative Change</div>
-                  <div className={`font-bold font-mono text-sm ${gated ? 'text-teal-300' : 'text-amber-300'}`}>
+                <div className="p-1.5 rounded bg-[#202023] border border-white/5">
+                  <div className="text-[#71717a] text-[10px]">Apparent change</div>
+                  <div className={`font-mono font-medium text-sm ${gated ? 'text-[#10b981]' : 'text-amber-400'}`}>
                     {gated ? '7.4%' : '11.2%'}
                   </div>
                 </div>
-                <div className="p-1.5 rounded bg-slate-900/80 border border-slate-700">
-                  <div className="text-slate-400 text-[10px]">T1 ∪ T2 Excluded</div>
-                  <div className="font-bold font-mono text-sm text-teal-400">
-                    {gated ? `${unionCloudPct}% Masked` : '+3.8% Drift'}
+                <div className="p-1.5 rounded bg-[#202023] border border-white/5">
+                  <div className="text-[#71717a] text-[10px]">T1 ∪ T2 excluded</div>
+                  <div className="font-mono font-medium text-sm text-[#ededed]">
+                    {gated ? `${unionCloudPct}% masked` : '+3.8% drift'}
                   </div>
                 </div>
               </div>
@@ -148,56 +170,51 @@ export function RightPanel({
           )}
 
           <KPICard
-            label={`☁ Cloud Cover in AOI (T1: ${dateT1})`}
+            label={`Cloud cover in AOI (T1: ${dateT1})`}
             value={`${cloudCover.toFixed(2)}%`}
-            sub={`τ = ${tau.toFixed(2)} · T2 (${dateT2}) = ${cloudCoverT2.toFixed(2)}%`}
-            color="#f59e0b"
+            sub={`τ = ${tau.toFixed(2)} · T2 (${dateT2}): ${cloudCoverT2.toFixed(2)}%`}
+            focal
           />
           <KPICard
-            label="🎯 Precision"
+            label="Precision"
             value={metrics.precision.toFixed(4)}
             sub={`CS+ vs ${activeSweep.reference}`}
           />
           <KPICard
-            label="📡 Recall"
+            label="Recall"
             value={metrics.recall.toFixed(4)}
             sub="SCL cloud pixels flagged by CS+"
           />
           <KPICard
-            label="⚖ F1-Score"
+            label="F1-Score"
             value={metrics.f1.toFixed(4)}
             sub={`Peak F1 = ${bestRow.f1.toFixed(4)} at τ = ${bestRow.tau.toFixed(2)}`}
-            color="#a78bfa"
           />
           <KPICard
-            label="κ Cohen's Kappa"
+            label="Cohen's Kappa (κ)"
             value={metrics.kappa.toFixed(4)}
             sub="Inter-mask agreement (CS+ vs. SCL)"
-            color="#34d399"
           />
 
           {/* Sentinel-2 6-Band Ingestion Reference */}
-          <div
-            className="rounded-lg p-2.5 mt-1"
-            style={{ background: '#0d1b2a', border: '1px solid var(--border)' }}
-          >
-            <div className="text-xs font-semibold text-teal-400 mb-1">Sentinel-2 6-Band Ingestion (10 m)</div>
+          <div className="rounded-md p-2.5 bg-[#19191b] border border-white/8 mt-1">
+            <div className="text-xs font-medium text-[#ededed] mb-1.5">Sentinel-2 6-band ingestion (10 m)</div>
             {[
-              ['B2', 'Blue',   '490 nm',  'Atmospheric Aerosol'],
-              ['B3', 'Green',  '560 nm',  'Vegetation Peak'],
-              ['B4', 'Red',    '665 nm',  'Chlorophyll Absorption'],
-              ['B8', 'NIR',    '842 nm',  'Biomass / Water Contrast'],
-              ['B11','SWIR-1','1610 nm',  'Cloud / Snow Separation'],
-              ['B12','SWIR-2','2190 nm',  'Built-up / Soil Contrast'],
+              ['B2', 'Blue',   '490 nm',  'Atmospheric aerosol'],
+              ['B3', 'Green',  '560 nm',  'Vegetation peak'],
+              ['B4', 'Red',    '665 nm',  'Chlorophyll absorption'],
+              ['B8', 'NIR',    '842 nm',  'Biomass / water contrast'],
+              ['B11','SWIR-1','1610 nm',  'Cloud / snow separation'],
+              ['B12','SWIR-2','2190 nm',  'Built-up / soil contrast'],
             ].map(([b, name, wl, desc]) => (
-              <div key={b} className="flex justify-between items-center text-xs text-slate-400 mb-0.5">
-                <span className="font-mono text-teal-300 font-bold">{b}</span>
-                <span>{name} ({wl})</span>
-                <span className="text-[10px] text-slate-500">{desc}</span>
+              <div key={b} className="flex justify-between items-center text-[11px] text-[#71717a] py-0.5 border-b border-white/4 last:border-0 font-mono">
+                <span className="text-[#a1a1a6] font-medium w-8">{b}</span>
+                <span className="text-[#a1a1a6]">{name} ({wl})</span>
+                <span className="text-[10px] text-[#71717a]">{desc}</span>
               </div>
             ))}
-            <div className="text-[10px] text-slate-400 mt-1 border-t border-slate-800 pt-1">
-              Reflectance Scaling: <code className="text-teal-300 font-mono">ρ = DN ÷ 10 000</code>
+            <div className="text-[10px] text-[#71717a] mt-1.5 pt-1 border-t border-white/8 font-mono">
+              Scaling: ρ = DN ÷ 10,000 (TOA/BOA surface reflectance)
             </div>
           </div>
         </div>
@@ -206,47 +223,44 @@ export function RightPanel({
       {/* ===== SENSITIVITY TAB ===== */}
       {activeTab === 'sensitivity' && (
         <div>
-          <div className="text-xs font-semibold mb-2" style={{ color: 'var(--teal)' }}>
-            Measured Threshold Sweep ({activeSweep.date})
+          <div className="text-xs font-medium text-[#ededed] mb-2">
+            Threshold sensitivity sweep ({activeSweep.date})
           </div>
           <ResponsiveContainer width="100%" height={210}>
-            <LineChart data={sensitivity} margin={{ top: 4, right: 8, bottom: 4, left: -16 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e3a4a" />
-              <XAxis dataKey="tau" tick={{ fontSize: 10, fill: '#94a3b8' }} />
-              <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
+            <LineChart data={sensitivity} margin={{ top: 4, right: 8, bottom: 4, left: -20 }}>
+              <CartesianGrid strokeDasharray="2 2" stroke="rgba(255, 255, 255, 0.06)" />
+              <XAxis dataKey="tau" tick={{ fontSize: 9, fill: '#71717a' }} />
+              <YAxis tick={{ fontSize: 9, fill: '#71717a' }} />
               <Tooltip
-                contentStyle={{ background: '#0d1b2a', border: '1px solid #1e3a4a', fontSize: 11 }}
-                labelStyle={{ color: '#2dd4bf' }}
+                contentStyle={{ background: '#141415', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: 6, fontSize: 11, color: '#ededed' }}
+                labelStyle={{ color: '#10b981', fontFamily: 'monospace' }}
               />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Line type="monotone" dataKey="cloudPct" name="Cloud %" stroke="#f59e0b" dot={false} strokeWidth={2} />
-              <Line type="monotone" dataKey="f1"       name="F1"       stroke="#a78bfa" dot={false} strokeWidth={2} />
-              <Line type="monotone" dataKey="precision" name="Prec."   stroke="#2dd4bf" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
-              <Line type="monotone" dataKey="recall"   name="Recall"   stroke="#f87171" dot={false} strokeWidth={1.5} strokeDasharray="4 2" />
+              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
+              <Line type="monotone" dataKey="cloudPct" name="Cloud %" stroke="#10b981" dot={false} strokeWidth={2} />
+              <Line type="monotone" dataKey="f1"       name="F1"       stroke="#ededed" dot={false} strokeWidth={1.5} />
+              <Line type="monotone" dataKey="precision" name="Prec."   stroke="#a1a1a6" dot={false} strokeWidth={1} strokeDasharray="3 3" />
+              <Line type="monotone" dataKey="recall"   name="Recall"   stroke="#71717a" dot={false} strokeWidth={1} strokeDasharray="3 3" />
             </LineChart>
           </ResponsiveContainer>
 
-          <div
-            className="rounded-lg p-2.5 mt-2 text-xs"
-            style={{ background: '#0d1b2a', border: '1px solid var(--border)' }}
-          >
-            <div className="font-semibold text-teal-400 mb-1">
-              Measured 10 m Pixel Counts ({activeSweep.date})
+          <div className="rounded-md p-2.5 mt-2 text-xs bg-[#19191b] border border-white/8">
+            <div className="font-medium text-[#ededed] mb-1">
+              Measured 10 m pixel counts ({activeSweep.date})
             </div>
-            <div className="text-[10px] text-slate-400 font-mono truncate mb-1.5" title={activeSweep.sceneId}>
+            <div className="text-[10px] text-[#71717a] font-mono truncate mb-2" title={activeSweep.sceneId}>
               {activeSweep.sceneId}
             </div>
-            <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-slate-400 text-[11px]">
-              <span>CS+ @ τ=0.60:</span>  <span className="text-white font-mono">{row60.cspCloudPct.toFixed(2)}%</span>
-              <span>CS+ @ τ=0.80:</span>  <span className="text-white font-mono">{row80.cspCloudPct.toFixed(2)}%</span>
-              <span>Sen2Cor SCL:</span>    <span className="text-white font-mono">{row60.sclCloudPct.toFixed(2)}%</span>
-              <span>P / R @ τ=0.60:</span><span className="text-white font-mono">{row60.precision.toFixed(4)} / {row60.recall.toFixed(4)}</span>
-              <span>F1 @ τ=0.60:</span>   <span className="text-white font-mono">{row60.f1.toFixed(4)}</span>
-              <span>Peak F1:</span>       <span className="text-white font-mono">{bestRow.f1.toFixed(4)} @ τ={bestRow.tau.toFixed(2)}</span>
-              <span>κ @ τ=0.60:</span>    <span className="text-white font-mono">{row60.kappa.toFixed(4)}</span>
+            <div className="grid grid-cols-2 gap-x-2 gap-y-1.5 text-[#71717a] text-[11px] font-mono tabular-nums">
+              <span>CS+ @ τ=0.60:</span>  <span className="text-[#ededed]">{row60.cspCloudPct.toFixed(2)}%</span>
+              <span>CS+ @ τ=0.80:</span>  <span className="text-[#ededed]">{row80.cspCloudPct.toFixed(2)}%</span>
+              <span>Sen2Cor SCL:</span>    <span className="text-[#ededed]">{row60.sclCloudPct.toFixed(2)}%</span>
+              <span>P / R @ τ=0.60:</span><span className="text-[#ededed]">{row60.precision.toFixed(4)} / {row60.recall.toFixed(4)}</span>
+              <span>F1 @ τ=0.60:</span>   <span className="text-[#ededed]">{row60.f1.toFixed(4)}</span>
+              <span>Peak F1:</span>       <span className="text-[#10b981]">{bestRow.f1.toFixed(4)} @ τ={bestRow.tau.toFixed(2)}</span>
+              <span>κ @ τ=0.60:</span>    <span className="text-[#ededed]">{row60.kappa.toFixed(4)}</span>
             </div>
-            <div className="text-[10px] text-slate-500 mt-1.5 pt-1 border-t border-slate-800">
-              Note: At τ ≥ {activeSweep.date === '2025-05-10' ? '0.85' : '0.90'}, CS+ saturates (100% AOI flagged).
+            <div className="text-[10px] text-[#71717a] mt-2 pt-1 border-t border-white/8 font-mono">
+              Note: At τ ≥ {activeSweep.date === '2025-05-10' ? '0.85' : '0.90'}, CS+ flags 100% AOI.
             </div>
           </div>
         </div>
@@ -255,10 +269,10 @@ export function RightPanel({
       {/* ===== LULC TAB ===== */}
       {activeTab === 'lulc' && (
         <div>
-          <div className="text-xs font-semibold mb-2 flex justify-between" style={{ color: 'var(--teal)' }}>
-            <span>9-Class Land Cover (%)</span>
-            <span className={gated ? 'text-teal-400 font-bold' : 'text-amber-400 font-bold'}>
-              {gated ? '✅ Cloud-Gated' : '⚠️ Ungated (Illustrative)'}
+          <div className="text-xs font-medium mb-2 flex justify-between text-[#ededed]">
+            <span>9-Class land cover (%)</span>
+            <span className={`font-mono text-[11px] ${gated ? 'text-[#10b981]' : 'text-amber-400'}`}>
+              {gated ? 'Cloud-gated' : 'Ungated'}
             </span>
           </div>
           <ResponsiveContainer width="100%" height={260}>
@@ -272,24 +286,24 @@ export function RightPanel({
               layout="vertical"
               margin={{ top: 4, right: 8, bottom: 4, left: 52 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e3a4a" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 9, fill: '#94a3b8' }} unit="%" />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fill: '#94a3b8' }} width={50} />
+              <CartesianGrid strokeDasharray="2 2" stroke="rgba(255, 255, 255, 0.06)" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 9, fill: '#71717a' }} unit="%" />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fill: '#a1a1a6' }} width={50} />
               <Tooltip
-                contentStyle={{ background: '#0d1b2a', border: '1px solid #1e3a4a', fontSize: 11 }}
+                contentStyle={{ background: '#141415', border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: 6, fontSize: 11, color: '#ededed' }}
               />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Bar dataKey="T1" name={`T1 (${dateT1})`} radius={[0,2,2,0]} opacity={0.85}>
+              <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
+              <Bar dataKey="T1" name={`T1 (${dateT1})`} radius={[0, 2, 2, 0]} opacity={0.85}>
                 {LULC_CLASSES.map(c => <Cell key={c.id} fill={c.color} />)}
               </Bar>
-              <Bar dataKey="T2" name={`T2 (${dateT2})`} radius={[0,2,2,0]} opacity={0.55}>
+              <Bar dataKey="T2" name={`T2 (${dateT2})`} radius={[0, 2, 2, 0]} opacity={0.50}>
                 {LULC_CLASSES.map(c => <Cell key={c.id} fill={c.color} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
 
-          <div className="text-[10px] text-slate-500 mt-1">
-            Dynamic World 9-class · 10 m raster (ungated drift is illustrative)
+          <div className="text-[10px] text-[#71717a] mt-1 font-mono">
+            Dynamic World 9-class · 10 m raster (ungated drift illustrative)
           </div>
         </div>
       )}
@@ -297,22 +311,22 @@ export function RightPanel({
       {/* ===== MULTI-FIELD IMPACT TAB ===== */}
       {activeTab === 'impact' && (
         <div className="space-y-2">
-          <div className="text-xs font-semibold mb-1" style={{ color: 'var(--teal)' }}>
-            Real-World Engineering & Public Policy Impact
+          <div className="text-xs font-medium text-[#ededed] mb-1">
+            Civil infrastructure & environmental impact
           </div>
-          <p className="text-[11px] text-slate-300 mb-2 leading-relaxed">
-            Concrete deployment use-cases enabled by masking clouds and transient atmospheric noise:
+          <p className="text-[11px] text-[#71717a] mb-2 leading-relaxed">
+            Deployment use-cases enabled by deterministic cloud gating and atmospheric validation:
           </p>
           {FIELD_IMPACTS.map(fi => (
             <div
               key={fi.field}
-              className="rounded-lg p-2.5 transition-all hover:border-teal-500/50"
-              style={{ background: '#0d1b2a', border: '1px solid var(--border)' }}
+              className="rounded-md p-2.5 bg-[#19191b] border border-white/8 transition-colors hover:border-white/15"
             >
-              <div className="flex items-center gap-1.5 font-semibold text-xs text-white mb-1">
-                <span>{fi.icon}</span> <span>{fi.field}</span>
+              <div className="flex items-center gap-1.5 font-medium text-xs text-[#ededed] mb-1">
+                {getFieldIcon(fi.field)}
+                <span>{fi.field}</span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-relaxed">{fi.text}</p>
+              <p className="text-[11px] text-[#a1a1a6] leading-relaxed">{fi.text}</p>
             </div>
           ))}
         </div>

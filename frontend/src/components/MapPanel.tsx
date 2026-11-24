@@ -224,8 +224,8 @@ function StageOverlay({
         ctx.fillRect(0, 0, width, height)
       }
 
-      ctx.strokeStyle = 'rgba(45, 212, 191, 0.9)'
-      ctx.lineWidth = 2.5
+      ctx.strokeStyle = 'rgba(16, 185, 129, 0.85)'
+      ctx.lineWidth = 2
       ctx.beginPath(); ctx.moveTo(12, 12); ctx.lineTo(36, 12); ctx.moveTo(12, 12); ctx.lineTo(12, 36); ctx.stroke()
       ctx.beginPath(); ctx.moveTo(width - 12, 12); ctx.lineTo(width - 36, 12); ctx.moveTo(width - 12, 12); ctx.lineTo(width - 12, 36); ctx.stroke()
       ctx.beginPath(); ctx.moveTo(12, height - 12); ctx.lineTo(36, height - 12); ctx.moveTo(12, height - 12); ctx.lineTo(12, height - 36); ctx.stroke()
@@ -271,7 +271,7 @@ function StageOverlay({
         }, 0.7, -4, 3)
 
       } else {
-        // Primary T1 cloud mask (Magenta)
+        // Primary T1 cloud mask
         drawClusters(clustersT1, baseRadiusT1, cloudCover, (x, y, r) => {
           const grad = ctx.createRadialGradient(x, y, 0, x, y, r)
           grad.addColorStop(0, 'rgba(236, 72, 153, 0.82)')
@@ -284,12 +284,12 @@ function StageOverlay({
           ctx.fill()
         })
 
-        // Secondary T2 comparison footprint (dashed cyan ring so changing T2 is visibly reflected on the map)
+        // Secondary T2 comparison footprint
         if (dateT2 !== dateT1 && !isFullSatT2) {
           ctx.save()
           ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)'
-          ctx.lineWidth = 2
-          ctx.setLineDash([5, 4])
+          ctx.lineWidth = 1.5
+          ctx.setLineDash([4, 4])
           drawClusters(clustersT2, baseRadiusT2, cloudCoverT2, (x, y, r) => {
             ctx.beginPath()
             ctx.arc(x, y, r * 0.85, 0, Math.PI * 2)
@@ -411,16 +411,15 @@ function StageOverlay({
 function MapLegend({ stage, gated, dateT1, dateT2 }: { stage: PipelineStage; gated: boolean; dateT1: string; dateT2: string }) {
   if (stage === 'lulc') {
     return (
-      <div
-        className="absolute bottom-4 right-4 z-[1000] rounded-lg p-2.5 text-xs shadow-lg backdrop-blur"
-        style={{ background: 'rgba(13,27,42,0.92)', border: '1px solid var(--border)' }}
-      >
-        <div className="font-semibold mb-1 text-white">LULC Classes {gated ? '(Cloud-Gated)' : '(⚠️ Ungated)'}</div>
+      <div className="absolute bottom-4 right-4 z-[1000] rounded-md p-3 text-xs bg-[#141415]/95 border border-white/10 shadow-lg backdrop-blur">
+        <div className="font-medium mb-1.5 text-[#ededed]">
+          LULC classes {gated ? '(Cloud-gated)' : '(Ungated baseline)'}
+        </div>
         {LULC_CLASSES.map(c => (
-          <div key={c.id} className="flex items-center gap-1.5 mb-0.5">
-            <span className="w-3 h-3 rounded-sm inline-block shadow-sm" style={{ background: c.color }} />
-            <span className="text-slate-300">{c.name}</span>
-            <span className="ml-auto text-slate-400 font-mono text-[11px]">
+          <div key={c.id} className="flex items-center gap-2 mb-1">
+            <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: c.color }} />
+            <span className="text-[#a1a1a6] text-[11px]">{c.name}</span>
+            <span className="ml-auto text-[#71717a] font-mono text-[11px] tabular-nums pl-4">
               {(gated ? c.t1 : ungatedPct(c, 't1')).toFixed(1)}%
             </span>
           </div>
@@ -430,42 +429,57 @@ function MapLegend({ stage, gated, dateT1, dateT2 }: { stage: PipelineStage; gat
   }
   if (stage === 'change') {
     return (
-      <div
-        className="absolute bottom-4 right-4 z-[1000] rounded-lg p-2.5 text-xs shadow-lg backdrop-blur"
-        style={{ background: 'rgba(13,27,42,0.92)', border: '1px solid var(--border)' }}
-      >
-        <div className="font-semibold mb-1 text-white">Change ({dateT1} → {dateT2})</div>
-        <div className="flex items-center gap-1.5 mb-1"><span className="w-3 h-3 rounded-sm" style={{ background: '#fbbf24' }} /> Changed Area ({gated ? '7.4' : '11.2'}% · Illustr.)</div>
-        <div className="flex items-center gap-1.5 mb-1"><span className="w-3 h-3 rounded-sm" style={{ background: '#ef4444' }} /> T1 Cloud Drift / Loss</div>
-        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: '#f97316' }} /> T2 Cloud Drift / Gain</div>
-        <div className="mt-2 pt-1 border-t border-slate-700 text-[10px] text-teal-300">
-          {gated ? '✅ M_valid = NOT(M_T1 ∪ M_T2) Active' : '⚠️ Ungated T1/T2 Cloud Artifacts'}
+      <div className="absolute bottom-4 right-4 z-[1000] rounded-md p-3 text-xs bg-[#141415]/95 border border-white/10 shadow-lg backdrop-blur">
+        <div className="font-medium mb-1.5 text-[#ededed]">Change analysis ({dateT1} → {dateT2})</div>
+        <div className="flex items-center gap-2 mb-1 text-[11px] text-[#a1a1a6]">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-amber-400" />
+          <span>Surface change ({gated ? '7.4' : '11.2'}%)</span>
+        </div>
+        <div className="flex items-center gap-2 mb-1 text-[11px] text-[#a1a1a6]">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-red-500" />
+          <span>T1 cloud drift</span>
+        </div>
+        <div className="flex items-center gap-2 text-[11px] text-[#a1a1a6]">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-orange-500" />
+          <span>T2 cloud drift</span>
+        </div>
+        <div className="mt-2 pt-1.5 border-t border-white/8 text-[10px] text-[#71717a] font-mono">
+          {gated ? 'M_valid = NOT(M_T1 ∪ M_T2) active' : 'Ungated baseline: cloud artifacts unmasked'}
         </div>
       </div>
     )
   }
   if (stage === 'validgate') {
     return (
-      <div
-        className="absolute bottom-4 right-4 z-[1000] rounded-lg p-2.5 text-xs shadow-lg backdrop-blur"
-        style={{ background: 'rgba(13,27,42,0.92)', border: '1px solid var(--border)' }}
-      >
-        <div className="font-semibold mb-1 text-white">Valid-Pixel Gate Union</div>
-        <div className="flex items-center gap-1.5 mb-1"><span className="w-3 h-3 rounded-sm" style={{ background: '#0f172a', border: '1px solid #475569' }} /> Masked on T1 ({dateT1})</div>
-        <div className="flex items-center gap-1.5 mb-1"><span className="w-3 h-3 rounded-sm" style={{ background: '#1e1b4b', border: '1px solid #6366f1' }} /> Masked on T2 ({dateT2})</div>
-        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: 'transparent', border: '1px dashed #2dd4bf' }} /> Valid Intersection M_valid</div>
+      <div className="absolute bottom-4 right-4 z-[1000] rounded-md p-3 text-xs bg-[#141415]/95 border border-white/10 shadow-lg backdrop-blur">
+        <div className="font-medium mb-1.5 text-[#ededed]">Valid-pixel gate union</div>
+        <div className="flex items-center gap-2 mb-1 text-[11px] text-[#a1a1a6]">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-[#0f172a] border border-slate-600" />
+          <span>Masked on T1 ({dateT1})</span>
+        </div>
+        <div className="flex items-center gap-2 mb-1 text-[11px] text-[#a1a1a6]">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-[#1e1b4b] border border-indigo-500" />
+          <span>Masked on T2 ({dateT2})</span>
+        </div>
+        <div className="flex items-center gap-2 text-[11px] text-[#a1a1a6]">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0 border border-dashed border-[#10b981]" />
+          <span>Valid intersection (M_valid)</span>
+        </div>
       </div>
     )
   }
   if (stage === 'cloudmask') {
     return (
-      <div
-        className="absolute bottom-4 right-4 z-[1000] rounded-lg p-2.5 text-xs shadow-lg backdrop-blur"
-        style={{ background: 'rgba(13,27,42,0.92)', border: '1px solid var(--border)' }}
-      >
-        <div className="font-semibold mb-1 text-white">Cloud Mask Overlay</div>
-        <div className="flex items-center gap-1.5 mb-1"><span className="w-3 h-3 rounded-sm" style={{ background: '#ec4899', border: '1px solid #f472b6' }} /> T1 Mask ({dateT1})</div>
-        <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm" style={{ background: 'transparent', border: '1px dashed #38bdf8' }} /> T2 Footprint ({dateT2})</div>
+      <div className="absolute bottom-4 right-4 z-[1000] rounded-md p-3 text-xs bg-[#141415]/95 border border-white/10 shadow-lg backdrop-blur">
+        <div className="font-medium mb-1.5 text-[#ededed]">Cloud mask overlay</div>
+        <div className="flex items-center gap-2 mb-1 text-[11px] text-[#a1a1a6]">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0 bg-pink-500 border border-pink-400" />
+          <span>T1 mask ({dateT1})</span>
+        </div>
+        <div className="flex items-center gap-2 text-[11px] text-[#a1a1a6]">
+          <span className="w-2.5 h-2.5 rounded-sm shrink-0 border border-dashed border-sky-400" />
+          <span>T2 comparison footprint ({dateT2})</span>
+        </div>
       </div>
     )
   }
@@ -507,56 +521,60 @@ export function MapPanel({
   onToggleBasemap,
   onToggleLabels,
 }: MapPanelProps) {
-  const modeTag = !demoMode && liveTileUrl ? 'LIVE GEE' : 'DEMO'
+  const modeTag = !demoMode && liveTileUrl ? 'Live GEE' : 'Calibrated Model'
   const stageLabel: Record<PipelineStage, string> = {
-    rgb: `🛰️ [${modeTag}] True-Colour Sentinel-2 L2A (${dateT1} · 10m Alignment)`,
-    cloudmask: `☁️ [${modeTag}] Cloud Mask — ${maskMethod.toUpperCase()} (${dateT1} · τ=${tau.toFixed(2)})`,
-    validgate: `✅ [${modeTag}] Valid-Pixel Gate M_valid = NOT(${dateT1} ∪ ${dateT2})`,
-    lulc: `🗺️ [${modeTag}] Dynamic World 9-Class LULC (${gated ? 'Cloud-Gated' : '⚠️ Ungated'})`,
-    change: `🔄 [${modeTag}] Bitemporal Change (${dateT1} → ${dateT2} · ${gated ? 'Gated' : 'Ungated'})`,
+    rgb: `True-colour Sentinel-2 L2A · 10 m (${dateT1})`,
+    cloudmask: `Cloud mask · ${maskMethod.toUpperCase()} (τ = ${tau.toFixed(2)} · ${dateT1})`,
+    validgate: `Valid-pixel gate · M_valid = NOT(${dateT1} ∪ ${dateT2})`,
+    lulc: `Dynamic World 9-class LULC · ${gated ? 'Cloud-gated' : 'Ungated baseline'}`,
+    change: `Bitemporal change · ${dateT1} → ${dateT2} (${gated ? 'Gated' : 'Ungated'})`,
   }
 
   return (
     <div className="relative w-full h-full">
-      <div
-        className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] px-4 py-1.5 rounded-full text-xs font-semibold shadow-lg backdrop-blur border"
-        style={{ background: 'rgba(13,27,42,0.92)', borderColor: 'var(--border)', color: '#e2e8f0' }}
-      >
-        {stageLabel[stage]}
+      {/* Top stage telemetry banner */}
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] px-3.5 py-1.5 rounded-md text-xs font-medium shadow-md backdrop-blur bg-[#141415]/95 border border-white/10 text-[#ededed]">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-[#27272a] text-[#a1a1a6]">
+            {modeTag}
+          </span>
+          <span>{stageLabel[stage]}</span>
+        </div>
       </div>
 
-      <div
-        className="absolute top-3 right-3 z-[1000] flex items-center gap-1 p-1 rounded-lg shadow-md backdrop-blur border text-xs"
-        style={{ background: 'rgba(13,27,42,0.92)', borderColor: 'var(--border)' }}
-      >
+      {/* Basemap switch group */}
+      <div className="absolute top-3 right-3 z-[1000] flex items-center p-0.5 rounded-md shadow-md backdrop-blur bg-[#141415]/95 border border-white/10 text-xs">
         <button
           onClick={() => onToggleBasemap('satellite')}
-          className={`px-2.5 py-1 rounded transition-all font-medium ${basemap === 'satellite'
-            ? 'bg-teal-700 text-white shadow'
-            : 'text-slate-400 hover:text-white'
-            }`}
+          className={`px-2.5 py-1 rounded transition-colors font-medium cursor-pointer ${
+            basemap === 'satellite'
+              ? 'bg-[#27272a] text-white shadow-sm'
+              : 'text-[#71717a] hover:text-[#ededed]'
+          }`}
         >
-          🛰️ Esri Satellite
+          Satellite
         </button>
         <button
           onClick={() => onToggleBasemap('street')}
-          className={`px-2.5 py-1 rounded transition-all font-medium ${basemap === 'street'
-            ? 'bg-teal-700 text-white shadow'
-            : 'text-slate-400 hover:text-white'
-            }`}
+          className={`px-2.5 py-1 rounded transition-colors font-medium cursor-pointer ${
+            basemap === 'street'
+              ? 'bg-[#27272a] text-white shadow-sm'
+              : 'text-[#71717a] hover:text-[#ededed]'
+          }`}
         >
-          🗺️ OSM Streets
+          Streets
         </button>
-        <div className="w-[1px] h-4 bg-slate-700 mx-0.5" />
+        <div className="w-[1px] h-3.5 bg-white/10 mx-1" />
         <button
           onClick={() => onToggleLabels(!showLabels)}
-          className={`px-2 py-1 rounded transition-all font-medium ${showLabels
-            ? 'text-teal-300 bg-slate-800'
-            : 'text-slate-500 hover:text-slate-300'
-            }`}
-          title="Toggle Roads & Place Labels"
+          className={`px-2 py-1 rounded transition-colors font-medium cursor-pointer ${
+            showLabels
+              ? 'text-[#10b981]'
+              : 'text-[#71717a] hover:text-[#a1a1a6]'
+          }`}
+          title="Toggle place labels"
         >
-          🏷️ Labels
+          Labels
         </button>
       </div>
 
@@ -595,10 +613,10 @@ export function MapPanel({
         <Rectangle
           bounds={AOI_BOUNDS}
           pathOptions={{
-            color: '#2dd4bf',
-            weight: 2.5,
+            color: '#10b981',
+            weight: 1.5,
             fillOpacity: 0,
-            dashArray: '6 4',
+            dashArray: '4 4',
           }}
         />
 
@@ -618,11 +636,8 @@ export function MapPanel({
 
       <MapLegend stage={stage} gated={gated} dateT1={dateT1} dateT2={dateT2} />
 
-      <div
-        className="absolute bottom-4 left-3 z-[1000] px-2.5 py-1.5 rounded-lg text-xs backdrop-blur border shadow-md"
-        style={{ background: 'rgba(13,27,42,0.92)', borderColor: 'var(--border)', color: '#94a3b8' }}
-      >
-        <span className="font-semibold text-white">AOI:</span> 5 km × 5 km · <span className="text-teal-300 font-mono">T1:{dateT1}</span> · <span className="text-indigo-300 font-mono">T2:{dateT2}</span> · <span className="font-semibold text-amber-300">{modeTag}</span>
+      <div className="absolute bottom-4 left-3 z-[1000] px-2.5 py-1 rounded-md text-xs backdrop-blur border shadow-md bg-[#141415]/95 border-white/10 text-[#71717a] font-mono">
+        <span>AOI: 5 km × 5 km</span> · <span className="text-[#a1a1a6]">T1: {dateT1}</span> · <span className="text-[#a1a1a6]">T2: {dateT2}</span>
       </div>
     </div>
   )

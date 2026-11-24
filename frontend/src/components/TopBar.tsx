@@ -1,4 +1,4 @@
-import { Satellite, FlaskConical, Globe } from 'lucide-react'
+import { Satellite, Globe } from 'lucide-react'
 
 interface Props {
   demoMode: boolean
@@ -12,40 +12,41 @@ interface Props {
 
 export function TopBar({ demoMode, onToggleDemo, geeStatus }: Props) {
   return (
-    <header
-      className="flex items-center justify-between px-4 py-2 shrink-0 border-b"
-      style={{ background: 'var(--slate)', borderColor: 'var(--border)', zIndex: 100 }}
-    >
-      <div className="flex items-center gap-2">
-        <Satellite size={20} style={{ color: 'var(--teal)' }} />
+    <header className="flex items-center justify-between px-4 py-2.5 shrink-0 bg-[#141415] border-b border-white/8 z-50">
+      <div className="flex items-center gap-2.5">
+        <div className="w-7 h-7 rounded-md bg-[#19191b] border border-white/10 flex items-center justify-center text-[#a1a1a6]">
+          <Satellite size={15} />
+        </div>
         <div>
-          <span className="font-bold text-sm text-white tracking-wide">
-            AI Satellite Image Processing
-          </span>
-          <span className="ml-2 text-xs" style={{ color: '#94a3b8' }}>
-            Shahdara, East Delhi · 5 km × 5 km AOI · USAR, GGSIPU (28.65°N, 77.30°E)
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-xs text-[#ededed]">
+              Sentinel-2 Multi-Spectral Analysis
+            </span>
+            <span className="font-mono text-[10px] text-[#71717a] border-l border-white/10 pl-2">
+              Shahdara AOI · 5 km × 5 km (28.65°N, 77.30°E)
+            </span>
+          </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-400">
-          <Globe size={13} className="text-teal-400" />
-          <span>Esri World Imagery + Sentinel-2 L2A + Cloud Score+</span>
+      <div className="flex items-center gap-4">
+        <div className="hidden lg:flex items-center gap-1.5 text-xs text-[#71717a]">
+          <Globe size={13} className="text-[#a1a1a6]" />
+          <span>Esri World Imagery + Sentinel-2 L2A + Cloud Score+ v1</span>
         </div>
 
-        {/* Demo / Live toggle */}
+        {/* Demo / Live toggle button */}
         <button
           onClick={() => onToggleDemo(!demoMode)}
           title={geeStatus.message}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition-all cursor-pointer ${
-            demoMode
-              ? 'bg-amber-500/20 border-amber-500/50 text-amber-300 hover:bg-amber-500/30'
-              : 'bg-teal-500/20 border-teal-500/50 text-teal-300 hover:bg-teal-500/30'
-          }`}
+          className="flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-medium border border-white/10 bg-[#19191b] hover:bg-[#232325] text-[#ededed] transition-colors cursor-pointer"
         >
-          <FlaskConical size={12} />
-          {demoMode ? 'Demo Mode (Offline)' : 'Live GEE Mode'}
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              demoMode ? 'bg-amber-400' : 'bg-emerald-400'
+            }`}
+          />
+          <span>{demoMode ? 'Demo Mode (Offline)' : 'Live GEE Streaming'}</span>
         </button>
       </div>
     </header>
