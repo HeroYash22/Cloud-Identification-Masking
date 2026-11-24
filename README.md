@@ -145,6 +145,13 @@ During viva evaluations, click any of the 3 presets at the top of the Left Panel
 
 ---
 
+## 📏 What is measured vs. interpolated
+
+- **Measured (live GEE):** `backend/scripts/export_threshold_sweep.py` computes real TP/FP/FN/TN counts of Cloud Score+ (`cs_cdf < τ`) vs. the Sen2Cor SCL reference (classes 1, 3, 8, 9, 10) at 10 m for each τ and saves them to `backend/data/measured_sweep.json`. Demo mode replays that file (linear interpolation between measured τ only).
+- **Interpolated (until the export is run):** the demo's sensitivity curves and per-τ precision/recall/F1/κ are smooth illustrative functions anchored at the report's τ = 0.60 values. API responses carry `"source": "measured" | "interpolated_formula"`.
+- **Fixed illustrative values:** the "ungated" LULC drift and the 11.2% vs 7.4% change-detection figures are not computed live.
+- The reference is SCL, itself an algorithmic product, so κ/F1 measure inter-mask agreement, not accuracy against ground truth.
+
 ## 🧪 Automated Testing
 ```bash
 cd frontend

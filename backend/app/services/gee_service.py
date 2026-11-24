@@ -1,4 +1,4 @@
-"""
+"""Move-Item "$env:USERPROFILE\Downloads\diagnose_scene.py" scripts\"""
 Google Earth Engine (GEE) Service
 Handles real Sentinel-2 L2A ingestion, Cloud Score+ QA linkage,
 interactive map tile generation, and accuracy calculation over the Shahdara AOI.
@@ -132,6 +132,62 @@ def get_latest_sentinel_scene(aoi_bbox: list) -> Dict[str, Any]:
     }
 
 
+def _paired_s2_csplus(geom, date: str, date_end: str):
+    """
+    Returns (s2_image, cs_plus_image) for the SAME granule.
+    Cloud Score+ shares system:index with COPERNICUS/S2_SR_HARMONIZED, so we pick one
+    S2 scene (lowest CLOUDY_PIXEL_PERCENTAGE first, for determinism) and fetch its CS+ twin.
+    Taking .first() from each collection independently can pair different tiles/orbits.
+    """
+    import ee
+
+    s2_img = ee.Image(
+        ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
+        .filterBounds(geom)
+        .filterDate(date, date_end)
+        .sort("CLOUDY_PIXEL_PERCENTAGE")
+        .first()
+    )
+    cs_img = ee.Image(
+        ee.ImageCollection("GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
+        .filter(ee.Filter.eq("system:index", s2_img.get("system:index")))
+        .first()
+    )
+    return s2_img.clip(geom), cs_img.clip(geom)
+
+
+def _scl_cloud_mask(scl):
+    """Sen2Cor SCL classes treated as cloud/shadow reference: 1, 3, 8, 9, 10."""
+    return scl.eq(1).Or(scl.eq(3)).Or(scl.eq(8)).Or(scl.eq(9)).Or(scl.eq(10)).rename("scl_mask")
+
+
+def live_confusion_counts(date: str, tau: float) -> Dict[str, Any]:
+    """
+    Real confusion counts of Cloud Score+ (cs_cdf < tau) against the SCL reference mask
+    over the AOI at 10 m. Used by the threshold-sweep export script.
+    """
+    if not init_gee():
+        raise RuntimeError(_gee_init_error or "GEE not initialized")
+    import ee
+
+    geom = ee.Geometry.Rectangle(AOI["bbox"])
+    date_end = (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+    s2, cs = _paired_s2_csplus(geom, date, date_end)
+
+    pred = cs.select("cs_cdf").lt(tau)
+    ref = _scl_cloud_mask(s2.select("SCL"))
+    stack = ee.Image.cat([
+        pred.And(ref).rename("tp"),
+        pred.And(ref.Not()).rename("fp"),
+        pred.Not().And(ref).rename("fn"),
+        pred.Not().And(ref.Not()).rename("tn"),
+    ])
+    sums = stack.reduceRegion(ee.Reducer.sum(), geom, 10, maxPixels=1e7).getInfo()
+    tp, fp, fn, tn = (int(sums.get(k) or 0) for k in ("tp", "fp", "fn", "tn"))
+    return {"tau": tau, "tp": tp, "fp": fp, "fn": fn, "tn": tn,
+            "scene_id": s2.get("system:index").getInfo()}
+
+
 def compute_live_cloud_mask(date: str, tau: float, method: str = "csp") -> Dict[str, Any]:
     """
     Executes real GEE computation linking Sentinel-2 SR with Cloud Score+
@@ -146,22 +202,8 @@ def compute_live_cloud_mask(date: str, tau: float, method: str = "csp") -> Dict[
     date_dt = datetime.strptime(date, "%Y-%m-%d")
     date_end = (date_dt + timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # Ingest S2 L2A & Cloud Score+
-    s2 = (
-        ee.ImageCollection("COPERNICUS/S2_SR_HARMONIZED")
-        .filterBounds(geom)
-        .filterDate(date, date_end)
-        .first()
-        .clip(geom)
-    )
-
-    cs_plus = (
-        ee.ImageCollection("GOOGLE/CLOUD_SCORE_PLUS/V1/S2_HARMONIZED")
-        .filterBounds(geom)
-        .filterDate(date, date_end)
-        .first()
-        .clip(geom)
-    )
+    # Ingest S2 L2A & its Cloud Score+ twin (same granule)
+    s2, cs_plus = _paired_s2_csplus(geom, date, date_end)
 
     # Masks
     # Cloud Score+ : cs_cdf < tau flags cloud/shadow
@@ -169,14 +211,7 @@ def compute_live_cloud_mask(date: str, tau: float, method: str = "csp") -> Dict[
 
     # Sen2Cor SCL: 1 (Defective), 3 (Shadow), 8 (Med Cloud), 9 (High Cloud), 10 (Cirrus)
     scl = s2.select("SCL")
-    scl_mask = (
-        scl.eq(1)
-        .Or(scl.eq(3))
-        .Or(scl.eq(8))
-        .Or(scl.eq(9))
-        .Or(scl.eq(10))
-        .rename("scl_mask")
-    )
+    scl_mask = _scl_cloud_mask(scl)
 
     # Valid pixel gate: NOT(mask)
     valid_mask = cs_mask.Not().rename("valid_gate")
@@ -241,7 +276,7 @@ def compute_live_cloud_mask(date: str, tau: float, method: str = "csp") -> Dict[
         "method": method,
         "csp_cloud_pct": csp_cloud_pct,
         "scl_cloud_pct": scl_cloud_pct,
-        "qa_cloud_pct": round(scl_cloud_pct * 0.85, 2),
+        "qa_cloud_pct": None,  # Landsat QA_PIXEL comparison is not computed live
         "valid_pixel_pct": round(100 - csp_cloud_pct, 2),
         "precision": precision,
         "recall": recall,
@@ -330,11 +365,7 @@ def compute_live_dynamic_world(date: str, gated: bool = True, tau: float = 0.60)
             if int(float(k)) < len(class_names)
         }
     else:
-        dist = {
-            "Water": 1.2, "Trees": 7.8, "Grass": 6.2, "Flooded Veg.": 0.0,
-            "Crops": 0.8, "Shrub & Scrub": 2.1, "Built Area": 76.5,
-            "Bare Ground": 5.4, "Snow & Ice": 0.0,
-        }
+        raise RuntimeError("Dynamic World returned no valid pixels for this date/AOI")
 
     return {
         "date": date,

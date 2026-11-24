@@ -9,6 +9,37 @@ from typing import Dict, Any, List
 from app.constants import BASELINE_METRICS, AOI, LULC_CLASSES
 
 
+import json
+from pathlib import Path
+
+_MEASURED_PATH = Path(__file__).resolve().parents[2] / "data" / "measured_sweep.json"
+_measured_cache = None
+
+
+def _measured_rows():
+    """Rows from scripts/export_threshold_sweep.py (real GEE counts), or None if not exported yet."""
+    global _measured_cache
+    if _measured_cache is None:
+        try:
+            data = json.loads(_MEASURED_PATH.read_text())
+            _measured_cache = sorted(data["rows"], key=lambda r: r["tau"])
+        except Exception:
+            _measured_cache = []
+    return _measured_cache or None
+
+
+def _interp_measured(tau: float, key: str):
+    """Linear interpolation BETWEEN measured thresholds only; None outside the measured range."""
+    rows = _measured_rows()
+    if not rows or tau < rows[0]["tau"] or tau > rows[-1]["tau"]:
+        return None
+    for a, b in zip(rows, rows[1:]):
+        if a["tau"] <= tau <= b["tau"]:
+            w = 0.0 if b["tau"] == a["tau"] else (tau - a["tau"]) / (b["tau"] - a["tau"])
+            return a[key] + w * (b[key] - a[key])
+    return rows[-1][key]
+
+
 def _is_live() -> bool:
     return os.getenv("GEE_MODE", "demo").lower() == "live"
 
@@ -48,6 +79,9 @@ def compute_cloud_mask(date: str, tau: float, method: str = "csp") -> Dict[str, 
         norm = (t_clamped - 0.80) / 0.15
         csp_cover = 6.5 + 2.0 * (1.0 - math.exp(-2.6 * norm))
 
+    measured_cover = _interp_measured(tau, "csp_cloud_pct")
+    if measured_cover is not None:
+        csp_cover = measured_cover
     scl_cover = base["cloud_cover_scl"]
     qa_cover = scl_cover * 0.85  # slightly lower coverage
 
@@ -68,6 +102,7 @@ def compute_cloud_mask(date: str, tau: float, method: str = "csp") -> Dict[str, 
         "kappa": metrics["kappa"],
         "tile_url": None,
         "demo_mode": True,
+        "source": "measured" if measured_cover is not None else "interpolated_formula",
     }
 
 
@@ -80,7 +115,12 @@ def compute_metrics(tau: float) -> Dict[str, Any]:
     Returns precision / recall / F1 / kappa for a given τ.
     Demo: smooth curve around verified report values at τ=0.60.
     """
-    # Anchor at τ=0.60 from report; model a smooth bell over τ
+    measured = {k: _interp_measured(tau, k) for k in ("precision", "recall", "f1", "kappa")}
+    if all(v is not None for v in measured.values()):
+        return {"tau": tau, **{k: round(v, 4) for k, v in measured.items()},
+                "demo_mode": True, "source": "measured"}
+
+    # Fallback: smooth illustrative curve anchored at the report's τ=0.60 values (NOT measured)
     b = BASELINE_METRICS
     # F1 peaks around τ=0.55, falls off at both extremes
     f1_base = b["f1"]
@@ -101,6 +141,7 @@ def compute_metrics(tau: float) -> Dict[str, Any]:
         "f1": round(f1, 4),
         "kappa": round(kappa, 4),
         "demo_mode": True,
+        "source": "interpolated_formula",
     }
 
 
