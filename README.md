@@ -128,12 +128,12 @@ The prototype will query real `COPERNICUS/S2_SR_HARMONIZED`, `GOOGLE/CLOUD_SCORE
 
 During viva evaluations, click any of the 3 presets at the top of the Left Panel:
 
-1. **Winter Smog vs. Cirrus (Shahdara `2025-01-18`)**:
-   - Demonstrates the **13× threshold sensitivity jump** between $\tau=0.60$ (0.5% cloud cover) and $\tau=0.80$ (6.5% cloud cover) in severe Delhi winter particulate smog.
-2. **False Change Alarm Prevention (Ungated vs. Gated)**:
-   - Compares raw bitemporal difference (**11.2% change** with +3.8% false cloud alarms) against the deterministic **Valid-Pixel Gate $M_{\text{valid}} = \text{NOT}(M_{T1} \cup M_{T2})$** (**7.4% clean change**), proving **100% cloud artifact rejection**.
-3. **Multi-Field Impact (Urban / Water / Agriculture)**:
-   - Demonstrates real-world policy utility: Delhi Master Plan impervious surface monitoring, Yamuna River seasonal floodplain delineation, and agricultural phenology tracking.
+1. **Threshold Cliff (`2025-05-10`, Granule `20250510T053241_20250510T053240_T43RGM`)**:
+   - Demonstrates the measured **16× jump** from $\tau=0.60$ (`0.62%` CS+ cloud cover, `P=0.8816`, `R=0.0941`) to $\tau=0.80$ (`10.09%` cloud cover, peak `F1=0.6233`), followed by full-AOI saturation (`100%`) at $\tau \ge 0.85$.
+2. **Winter Haze Case (`2025-01-23`, Granule `20250123T053029_20250123T053836_T43RGM`)**:
+   - Compares winter aerosol haze (`2.02%` Sen2Cor SCL cloud), where CS+ flags `0.02%` at $\tau=0.60$, rises to `0.86%` at $\tau=0.80$, peaks at $\tau=0.85$ (`F1=0.7473`), and saturates at $\tau \ge 0.90$.
+3. **False Change Gate (Illustrative)**:
+   - Illustrative comparison of ungated bitemporal differencing (`11.2%` with `+3.8%` illustrative drift) vs. the deterministic **Valid-Pixel Gate $M_{\text{valid}} = \text{NOT}(M_{T1} \cup M_{T2})$** (`7.4%`).
 
 ---
 
@@ -147,8 +147,8 @@ During viva evaluations, click any of the 3 presets at the top of the Left Panel
 
 ## 📏 What is measured vs. interpolated
 
-- **Measured (live GEE):** `backend/scripts/export_threshold_sweep.py` computes real TP/FP/FN/TN counts of Cloud Score+ (`cs_cdf < τ`) vs. the Sen2Cor SCL reference (classes 1, 3, 8, 9, 10) at 10 m for each τ and saves them to `backend/data/measured_sweep.json`. Demo mode replays that file (linear interpolation between measured τ only).
-- **Interpolated (until the export is run):** the demo's sensitivity curves and per-τ precision/recall/F1/κ are smooth illustrative functions anchored at the report's τ = 0.60 values. API responses carry `"source": "measured" | "interpolated_formula"`.
+- **Measured (live GEE):** `backend/scripts/export_threshold_sweep.py` computes real TP/FP/FN/TN counts of Cloud Score+ (`cs_cdf < τ`) vs. the Sen2Cor SCL reference (classes 1, 3, 8, 9, 10) at 10 m for each τ. `backend/data/measured_sweep.json` holds the primary `2025-05-10` sweep (`T43RGM`, `5.84%` SCL cloud) alongside `backend/data/sweep_2025-01-23.json` (`2.02%` SCL cloud). Both backend demo mode and the frontend UI replay these measured counts directly (linear interpolation between measured τ only).
+- **Fallback outside measured bounds:** API responses carry `"source": "measured" | "interpolated_formula"`.
 - **Fixed illustrative values:** the "ungated" LULC drift and the 11.2% vs 7.4% change-detection figures are not computed live.
 - The reference is SCL, itself an algorithmic product, so κ/F1 measure inter-mask agreement, not accuracy against ground truth.
 

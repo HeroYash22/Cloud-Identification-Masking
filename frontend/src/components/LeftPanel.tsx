@@ -4,6 +4,7 @@ import { Download, Sparkles, Zap, CheckCircle2 } from 'lucide-react'
 import {
   type MaskMethod,
   type ScenarioPreset,
+  type MeasuredSceneSweep,
   SCENARIO_PRESETS,
 } from '../demoData'
 
@@ -11,6 +12,7 @@ interface Props {
   state: AppState
   patch: (p: Partial<AppState>) => void
   cloudCover: number
+  activeSweep: MeasuredSceneSweep
   onApplyPreset: (preset: ScenarioPreset) => void
 }
 
@@ -28,6 +30,19 @@ const MASK_METHODS: { id: MaskMethod; label: string }[] = [
   { id: 'qa',  label: 'Landsat QA_PIXEL' },
 ]
 
+function getLocalTodayISO(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function clampToToday(dateStr: string, todayISO: string): string {
+  if (!dateStr) return todayISO
+  return dateStr > todayISO ? todayISO : dateStr
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-4">
@@ -42,9 +57,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-export function LeftPanel({ state, patch, cloudCover, onApplyPreset }: Props) {
+export function LeftPanel({ state, patch, cloudCover, activeSweep, onApplyPreset }: Props) {
   const [fetchingLatest, setFetchingLatest] = useState(false)
   const [latestMsg, setLatestMsg] = useState<string | null>(null)
+  const todayISO = getLocalTodayISO()
+
+  const handleDateChange = (field: 'dateT1' | 'dateT2', rawValue: string) => {
+    if (!rawValue) return
+    const clamped = clampToToday(rawValue, todayISO)
+    patch({ [field]: clamped })
+  }
 
   const handleFetchLatest = async () => {
     setFetchingLatest(true)
@@ -53,15 +75,16 @@ export function LeftPanel({ state, patch, cloudCover, onApplyPreset }: Props) {
       const res = await fetch('/api/pipeline/latest-pass')
       if (res.ok) {
         const data = await res.json()
-        patch({ dateT1: data.date })
-        setLatestMsg(`Pass found: ${data.date} (${data.cloud_pct}% cloud)`)
+        const safeDate = clampToToday(data.date, todayISO)
+        patch({ dateT1: safeDate })
+        setLatestMsg(`Pass found: ${safeDate} (${data.cloud_pct}% cloud)`)
       } else {
-        patch({ dateT1: '2025-01-18' })
-        setLatestMsg('Using verified pass: 2025-01-18')
+        patch({ dateT1: '2025-05-10' })
+        setLatestMsg('Using measured pass: 2025-05-10 (5.84% SCL)')
       }
     } catch {
-      patch({ dateT1: '2025-01-18' })
-      setLatestMsg('Using verified pass: 2025-01-18 (Demo)')
+      patch({ dateT1: '2025-05-10' })
+      setLatestMsg('Using measured pass: 2025-05-10 (5.84% SCL)')
     } finally {
       setFetchingLatest(false)
       setTimeout(() => setLatestMsg(null), 4000)
@@ -72,6 +95,12 @@ export function LeftPanel({ state, patch, cloudCover, onApplyPreset }: Props) {
     const data = {
       aoi: 'Shahdara, East Delhi (5 km x 5 km)',
       center: [28.65, 77.30],
+      active_measured_scene: {
+        date: activeSweep.date,
+        scene_id: activeSweep.sceneId,
+        reference: activeSweep.reference,
+        scale_m: activeSweep.scaleM,
+      },
       date_t1: state.dateT1,
       date_t2: state.dateT2,
       threshold_tau: state.tau,
@@ -79,15 +108,14 @@ export function LeftPanel({ state, patch, cloudCover, onApplyPreset }: Props) {
       cloud_cover_pct: cloudCover,
       stage: state.stage,
       gated: state.gated,
-      note: 'AI Satellite Image Processing Prototype — B.Tech Minor Project',
+      note: 'AI Satellite Image Processing Prototype — B.Tech Minor Project (10 m GEE Pixel Sweep)',
     }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
     const url  = URL.createObjectURL(blob)
     const a    = document.createElement('a')
     a.href = url
-    a.download = `shahdara_${state.dateT1}_tau${state.tau}.json`
+    a.download = `shahdara_${activeSweep.date}_tau${state.tau}.json`
     a.click()
-    // Delay revocation to allow async downloads to finish reliably across browsers
     setTimeout(() => URL.revokeObjectURL(url), 100)
   }
 
@@ -106,7 +134,7 @@ export function LeftPanel({ state, patch, cloudCover, onApplyPreset }: Props) {
           <span>Evaluation Scenarios</span>
         </div>
         <p className="text-[11px] text-slate-300 mb-2 leading-snug">
-          One-click scenarios to demonstrate key report conclusions to evaluators:
+          One-click presets backed by 10 m GEE pixel sweeps:
         </p>
 
         <div className="flex flex-col gap-1.5">
@@ -185,12 +213,12 @@ export function LeftPanel({ state, patch, cloudCover, onApplyPreset }: Props) {
       {/* ---- ② Scene Dates ---- */}
       <Section title="② Sentinel-2 Dates">
         <div className="flex items-center justify-between mb-1">
-          <label className="text-xs text-slate-400">T1 (pre-event)</label>
+          <label className="text-xs text-slate-400">T1 (evaluation scene)</label>
           <button
             onClick={handleFetchLatest}
             disabled={fetchingLatest}
             className="flex items-center gap-1 text-[10.5px] px-1.5 py-0.5 rounded text-teal-300 hover:bg-teal-950 border border-teal-800/80 transition-all cursor-pointer"
-            title="Fetch the most recent Sentinel-2 pass in Live Mode"
+            title="Fetch the most recent Sentinel-2 pass up to today"
           >
             <Zap size={10} className="text-amber-400" />
             <span>{fetchingLatest ? 'Finding...' : 'Latest Pass'}</span>
@@ -198,17 +226,21 @@ export function LeftPanel({ state, patch, cloudCover, onApplyPreset }: Props) {
         </div>
         <input
           type="date"
+          min="2015-06-23"
+          max={todayISO}
           value={state.dateT1}
-          onChange={e => patch({ dateT1: e.target.value })}
+          onChange={e => handleDateChange('dateT1', e.target.value)}
           className="w-full px-2 py-1 rounded text-xs mb-2 font-mono"
           style={{ background: 'var(--slate)', color: '#e2e8f0', border: '1px solid var(--border)' }}
         />
 
-        <label className="text-xs text-slate-400 mb-0.5 block">T2 (post-event)</label>
+        <label className="text-xs text-slate-400 mb-0.5 block">T2 (comparison scene)</label>
         <input
           type="date"
+          min="2015-06-23"
+          max={todayISO}
           value={state.dateT2}
-          onChange={e => patch({ dateT2: e.target.value })}
+          onChange={e => handleDateChange('dateT2', e.target.value)}
           className="w-full px-2 py-1 rounded text-xs font-mono"
           style={{ background: 'var(--slate)', color: '#e2e8f0', border: '1px solid var(--border)' }}
         />
@@ -220,13 +252,32 @@ export function LeftPanel({ state, patch, cloudCover, onApplyPreset }: Props) {
           </div>
         )}
 
-        <div className="mt-2 flex gap-1">
+        <div className="mt-2 flex flex-col gap-1">
           <button
-            onClick={() => patch({ dateT1: '2025-01-18', dateT2: '2025-04-15' })}
-            className="text-[11px] w-full py-1 rounded border border-teal-600/50 hover:bg-teal-900/50 text-teal-200 transition-all cursor-pointer"
+            onClick={() => patch({ dateT1: '2025-05-10', dateT2: '2025-01-23' })}
+            className={`text-[11px] w-full py-1 px-2 rounded border transition-all cursor-pointer text-left flex justify-between items-center ${
+              state.dateT1 === '2025-05-10'
+                ? 'border-teal-500 bg-teal-900/50 text-white font-semibold'
+                : 'border-teal-600/40 hover:bg-teal-900/40 text-teal-200'
+            }`}
           >
-            Verified Baseline: 18-Jan-2025
+            <span>Measured Primary: 10-May-2025</span>
+            <span className="text-[9.5px] font-mono text-teal-300">5.84% SCL</span>
           </button>
+          <button
+            onClick={() => patch({ dateT1: '2025-01-23', dateT2: '2025-05-10' })}
+            className={`text-[11px] w-full py-1 px-2 rounded border transition-all cursor-pointer text-left flex justify-between items-center ${
+              state.dateT1 === '2025-01-23'
+                ? 'border-teal-500 bg-teal-900/50 text-white font-semibold'
+                : 'border-slate-700 hover:bg-slate-800 text-slate-300'
+            }`}
+          >
+            <span>Measured Haze: 23-Jan-2025</span>
+            <span className="text-[9.5px] font-mono text-slate-400">2.02% SCL</span>
+          </button>
+        </div>
+        <div className="mt-1.5 text-[10px] text-slate-400 font-mono truncate" title={activeSweep.sceneId}>
+          Granule: {activeSweep.sceneId}
         </div>
       </Section>
 
@@ -234,7 +285,7 @@ export function LeftPanel({ state, patch, cloudCover, onApplyPreset }: Props) {
       <Section title="③ Cloud Score+ Threshold">
         <div className="flex justify-between text-xs mb-1">
           <span className="text-slate-400 font-mono">τ = {state.tau.toFixed(2)}</span>
-          <span className="font-semibold" style={{ color: 'var(--teal)' }}>☁ {cloudCover}% Cloud</span>
+          <span className="font-semibold" style={{ color: 'var(--teal)' }}>☁ {cloudCover.toFixed(2)}% Cloud</span>
         </div>
         <input
           type="range"

@@ -1,36 +1,54 @@
 """
-Demo-mode service: returns pre-computed, realistic raster overlays and metrics
-for the Shahdara, East Delhi study area (scene date 2025-01-18).
+Demo-mode service: replays measured GEE pixel confusion counts from backend/data/
+for the Shahdara, East Delhi study area (primary scene 2025-05-10; winter haze scene 2025-01-23).
 
-In live mode, seamlessly queries Google Earth Engine via gee_service.py.
+When live=True (or GEE_MODE=live), queries Google Earth Engine via gee_service.py.
 """
-import os
-from typing import Dict, Any, List
-from app.constants import BASELINE_METRICS, AOI, LULC_CLASSES
-
-
 import json
+import math
+import os
 from pathlib import Path
+from typing import Dict, Any, List, Optional
+from app.constants import BASELINE_METRICS, AOI, LULC_CLASSES, SCENE_T1, SCENE_T2
 
-_MEASURED_PATH = Path(__file__).resolve().parents[2] / "data" / "measured_sweep.json"
+_DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+_MEASURED_PATH = _DATA_DIR / "measured_sweep.json"
 _measured_cache = None
+_scene_cache: Dict[str, Optional[Dict[str, Any]]] = {}
 
 
-def _measured_rows():
-    """Rows from scripts/export_threshold_sweep.py (real GEE counts), or None if not exported yet."""
+def _load_sweep_file(path: Path) -> Optional[Dict[str, Any]]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["rows"] = sorted(data["rows"], key=lambda r: r["tau"])
+        return data
+    except Exception:
+        return None
+
+
+def _measured_payload(date: Optional[str] = None) -> Optional[Dict[str, Any]]:
     global _measured_cache
+    if date:
+        if date not in _scene_cache:
+            date_file = _DATA_DIR / f"sweep_{date}.json"
+            _scene_cache[date] = _load_sweep_file(date_file) if date_file.exists() else None
+        if _scene_cache[date] is not None:
+            return _scene_cache[date]
+
     if _measured_cache is None:
-        try:
-            data = json.loads(_MEASURED_PATH.read_text())
-            _measured_cache = sorted(data["rows"], key=lambda r: r["tau"])
-        except Exception:
-            _measured_cache = []
+        _measured_cache = _load_sweep_file(_MEASURED_PATH) or {}
     return _measured_cache or None
 
 
-def _interp_measured(tau: float, key: str):
-    """Linear interpolation BETWEEN measured thresholds only; None outside the measured range."""
-    rows = _measured_rows()
+def _measured_rows(date: Optional[str] = None) -> Optional[List[Dict[str, Any]]]:
+    payload = _measured_payload(date)
+    if not payload or not payload.get("rows"):
+        return None
+    return payload["rows"]
+
+
+def _interp_measured(tau: float, key: str, date: Optional[str] = None):
+    rows = _measured_rows(date)
     if not rows or tau < rows[0]["tau"] or tau > rows[-1]["tau"]:
         return None
     for a, b in zip(rows, rows[1:]):
@@ -40,61 +58,56 @@ def _interp_measured(tau: float, key: str):
     return rows[-1][key]
 
 
-def _is_live() -> bool:
+def _is_live(live_override: Optional[bool] = None) -> bool:
+    if live_override is not None:
+        return live_override
     return os.getenv("GEE_MODE", "demo").lower() == "live"
 
 
-# ---------------------------------------------------------------------------
-# Cloud masking
-# ---------------------------------------------------------------------------
-
-def compute_cloud_mask(date: str, tau: float, method: str = "csp") -> Dict[str, Any]:
-    """
-    Returns mask statistics for a given date, threshold, and method.
-    In live mode: executes real GEE computation.
-    In demo mode: interpolates around verified report baseline values.
-    """
-    if _is_live():
-        from app.services.gee_service import compute_live_cloud_mask, init_gee
+def compute_cloud_mask(date: str, tau: float, method: str = "csp", live: Optional[bool] = None) -> Dict[str, Any]:
+    live_error = None
+    if _is_live(live):
+        from app.services.gee_service import compute_live_cloud_mask, init_gee, get_gee_status
         if init_gee():
             try:
                 return compute_live_cloud_mask(date, tau, method)
-            except Exception as e:
-                # Log and fallback gracefully
-                pass
+            except Exception as exc:
+                live_error = str(exc)
+        else:
+            live_error = get_gee_status().get("error") or "GEE not initialized"
 
     base = BASELINE_METRICS
-    # Non-linear Cloud Score+ CDF curve anchored to verified report findings:
-    # tau=0.50 -> 0.3%, tau=0.60 -> 0.5%, tau=0.80 -> 6.5% (13x jump), tau=0.95 -> 8.5%
+    payload = _measured_payload(date)
+
     t_clamped = max(0.10, min(0.95, tau))
     if t_clamped <= 0.60:
         norm = (t_clamped - 0.10) / 0.50
-        csp_cover = 0.1 + 0.4 * (norm ** 2.5)
+        csp_cover = 0.07 + 0.55 * (norm ** 2.2)
     elif t_clamped <= 0.80:
         norm = (t_clamped - 0.60) / 0.20
         s_curve = norm * norm * (3 - 2 * norm)
-        csp_cover = 0.5 + 6.0 * s_curve
+        csp_cover = 0.62 + 9.47 * s_curve
     else:
-        import math
         norm = (t_clamped - 0.80) / 0.15
-        csp_cover = 6.5 + 2.0 * (1.0 - math.exp(-2.6 * norm))
+        csp_cover = 10.09 + 89.91 * (1.0 - math.exp(-3.0 * norm))
 
-    measured_cover = _interp_measured(tau, "csp_cloud_pct")
+    measured_cover = _interp_measured(tau, "csp_cloud_pct", date)
+    measured_scl = _interp_measured(tau, "scl_cloud_pct", date)
     if measured_cover is not None:
         csp_cover = measured_cover
-    scl_cover = base["cloud_cover_scl"]
-    qa_cover = scl_cover * 0.85  # slightly lower coverage
+    scl_cover = measured_scl if measured_scl is not None else base["cloud_cover_scl"]
 
-    # Also compute metrics at this tau
-    metrics = compute_metrics(tau)
+    metrics = compute_metrics(tau, date=date)
 
     return {
-        "date": date,
+        "date": payload["date"] if payload else date,
+        "requested_date": date,
+        "scene_id": payload.get("scene_id") if payload else base["scene_id"],
         "tau": tau,
         "method": method,
         "csp_cloud_pct": round(csp_cover, 2),
         "scl_cloud_pct": round(scl_cover, 2),
-        "qa_cloud_pct": round(qa_cover, 2),
+        "qa_cloud_pct": None,
         "valid_pixel_pct": round(100 - csp_cover, 2),
         "precision": metrics["precision"],
         "recall": metrics["recall"],
@@ -102,36 +115,27 @@ def compute_cloud_mask(date: str, tau: float, method: str = "csp") -> Dict[str, 
         "kappa": metrics["kappa"],
         "tile_url": None,
         "demo_mode": True,
+        "live_error": live_error,
         "source": "measured" if measured_cover is not None else "interpolated_formula",
     }
 
 
-# ---------------------------------------------------------------------------
-# Accuracy metrics
-# ---------------------------------------------------------------------------
-
-def compute_metrics(tau: float) -> Dict[str, Any]:
-    """
-    Returns precision / recall / F1 / kappa for a given τ.
-    Demo: smooth curve around verified report values at τ=0.60.
-    """
-    measured = {k: _interp_measured(tau, k) for k in ("precision", "recall", "f1", "kappa")}
+def compute_metrics(tau: float, date: Optional[str] = None) -> Dict[str, Any]:
+    measured = {k: _interp_measured(tau, k, date) for k in ("precision", "recall", "f1", "kappa")}
     if all(v is not None for v in measured.values()):
-        return {"tau": tau, **{k: round(v, 4) for k, v in measured.items()},
-                "demo_mode": True, "source": "measured"}
+        return {
+            "tau": tau,
+            **{k: round(v, 4) for k, v in measured.items()},
+            "demo_mode": True,
+            "source": "measured",
+        }
 
-    # Fallback: smooth illustrative curve anchored at the report's τ=0.60 values (NOT measured)
     b = BASELINE_METRICS
-    # F1 peaks around τ=0.55, falls off at both extremes
     f1_base = b["f1"]
-    delta = (tau - 0.60)
+    delta = tau - 0.60
     f1 = max(0.05, f1_base - 0.6 * delta**2)
-
-    # Precision rises with τ; recall falls
-    precision = min(0.99, b["precision"] + 0.4 * (tau - 0.60))
-    recall = max(0.01, b["recall"] - 0.3 * (tau - 0.60))
-
-    # Kappa proportional to F1
+    precision = min(0.99, max(0.01, b["precision"] - 0.4 * delta))
+    recall = max(0.01, min(1.0, b["recall"] + 0.8 * delta))
     kappa = max(0.01, b["kappa"] * (f1 / f1_base))
 
     return {
@@ -145,13 +149,17 @@ def compute_metrics(tau: float) -> Dict[str, Any]:
     }
 
 
-def threshold_sensitivity(tau_min: float = 0.50, tau_max: float = 0.90, steps: int = 9) -> List[Dict[str, Any]]:
-    """Returns a series of {tau, cloud_pct, f1, precision, recall} dicts for the chart."""
+def threshold_sensitivity(
+    tau_min: float = 0.50,
+    tau_max: float = 0.90,
+    steps: int = 9,
+    date: str = SCENE_T1,
+) -> List[Dict[str, Any]]:
     series = []
     for i in range(steps):
         tau = round(tau_min + i * (tau_max - tau_min) / (steps - 1), 2)
-        m = compute_metrics(tau)
-        c = compute_cloud_mask("2025-01-18", tau)
+        m = compute_metrics(tau, date=date)
+        c = compute_cloud_mask(date, tau, live=False)
         series.append({
             "tau": tau,
             "cloud_pct": c["csp_cloud_pct"],
@@ -162,10 +170,6 @@ def threshold_sensitivity(tau_min: float = 0.50, tau_max: float = 0.90, steps: i
     return series
 
 
-# ---------------------------------------------------------------------------
-# LULC & Change Detection (derived from shared constants)
-# ---------------------------------------------------------------------------
-
 DEMO_LULC_T1 = {c["name"]: c["baseline_pct"] for c in LULC_CLASSES}
 DEMO_LULC_T2 = {
     c["name"]: round(c["baseline_pct"] * (1.008 if c["name"] == "Built Area" else 0.96), 1)
@@ -173,29 +177,32 @@ DEMO_LULC_T2 = {
     for c in LULC_CLASSES
 }
 
-# Atmospheric cloud misclassification drift
 LULC_UNGATED_DRIFT = {
-    "Water": 0.8,         # Cloud shadow misclassification
-    "Trees": -1.5,        # Obscured canopy
-    "Grass": -1.6,        # Obscured greenery
+    "Water": 0.8,
+    "Trees": -1.5,
+    "Grass": -1.6,
     "Flooded Veg.": 0.0,
     "Crops": 0.0,
     "Shrub & Scrub": 0.0,
-    "Built Area": 1.5,    # Unmasked bright cloud/haze
-    "Bare Ground": 0.8,   # Cloud fringe brightness
+    "Built Area": 1.5,
+    "Bare Ground": 0.8,
     "Snow & Ice": 0.0,
 }
 
-def get_lulc(date: str, gated: bool = True, tau: float = 0.60) -> Dict[str, Any]:
-    if _is_live():
-        from app.services.gee_service import compute_live_dynamic_world, init_gee
+
+def get_lulc(date: str, gated: bool = True, tau: float = 0.60, live: Optional[bool] = None) -> Dict[str, Any]:
+    live_error = None
+    if _is_live(live):
+        from app.services.gee_service import compute_live_dynamic_world, init_gee, get_gee_status
         if init_gee():
             try:
                 return compute_live_dynamic_world(date, gated=gated, tau=tau)
-            except Exception:
-                pass
+            except Exception as exc:
+                live_error = str(exc)
+        else:
+            live_error = get_gee_status().get("error") or "GEE not initialized"
 
-    base_dist = dict(DEMO_LULC_T1 if date == "2025-01-18" else DEMO_LULC_T2)
+    base_dist = dict(DEMO_LULC_T1 if date == SCENE_T1 else DEMO_LULC_T2)
     if not gated:
         dist = {
             k: round(max(0.0, v + LULC_UNGATED_DRIFT.get(k, 0.0)), 1)
@@ -203,19 +210,28 @@ def get_lulc(date: str, gated: bool = True, tau: float = 0.60) -> Dict[str, Any]
         }
     else:
         dist = base_dist
-    return {"date": date, "gated": gated, "distribution": dist, "demo_mode": True}
+    return {
+        "date": date,
+        "gated": gated,
+        "distribution": dist,
+        "tile_url": None,
+        "demo_mode": True,
+        "live_error": live_error,
+        "source": "measured_raster" if gated else "illustrative_ungated_drift",
+    }
 
 
 def get_change_detection(gated: bool = True) -> Dict[str, Any]:
-    changed_pct = 7.4 if gated else 11.2  # ungated inflates change artefacts by +3.8%
+    changed_pct = 7.4 if gated else 11.2
     false_alarms_pct = 0.0 if gated else 3.8
     stable_pct = 100 - changed_pct
     return {
-        "t1": "2025-01-18",
-        "t2": "2025-04-15",
+        "t1": SCENE_T1,
+        "t2": SCENE_T2,
         "gated": gated,
         "changed_pct": changed_pct,
         "stable_pct": stable_pct,
         "false_alarms_pct": false_alarms_pct,
         "demo_mode": True,
+        "source": "illustrative",
     }

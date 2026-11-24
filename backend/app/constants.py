@@ -20,20 +20,24 @@ AOI["bbox"] = [
 S2_BANDS = ["B2", "B3", "B4", "B8", "B11", "B12"]
 REFLECTANCE_SCALE = 10000
 
-# Reference dates from student's report
-SCENE_T1 = "2025-01-18"
-SCENE_T2 = "2025-04-15"
+# Measured evaluation dates (Sentinel-2 SR Harmonized + Cloud Score+ V1, MGRS Tile T43RGM)
+SCENE_T1 = "2025-05-10"
+SCENE_T2 = "2025-01-23"
+SCENE_ID_T1 = "20250510T053241_20250510T053240_T43RGM"
+SCENE_ID_T2 = "20250123T053029_20250123T053836_T43RGM"
 
-# Verified baseline metrics at τ = 0.60 (from report)
+# Measured baseline metrics at τ = 0.60 on 2025-05-10 (10 m pixel counts vs. Sen2Cor SCL)
 BASELINE_METRICS = {
+    "date": "2025-05-10",
+    "scene_id": SCENE_ID_T1,
     "tau": 0.60,
-    "cloud_cover_csp": 0.5,   # Cloud Score+ at τ=0.60 (%)
-    "cloud_cover_csp_t80": 6.5,  # at τ=0.80 (%)
-    "cloud_cover_scl": 1.9,   # SCL (%)
-    "precision": 0.6249,
-    "recall": 0.1618,
-    "f1": 0.2570,
-    "kappa": 0.2511,
+    "cloud_cover_csp": 0.62,      # Cloud Score+ at τ=0.60 (%)
+    "cloud_cover_csp_t80": 10.09, # Cloud Score+ at τ=0.80 (%)
+    "cloud_cover_scl": 5.84,      # Sen2Cor SCL classes 1,3,8,9,10 (%)
+    "precision": 0.8816,
+    "recall": 0.0941,
+    "f1": 0.1701,
+    "kappa": 0.1606,
 }
 
 # Dynamic World LULC classes (Shahdara / East Delhi baseline percentages from real pixel-aligned satellite classification)
