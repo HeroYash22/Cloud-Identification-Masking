@@ -1,4 +1,4 @@
-# AI-Based Satellite Image Processing Prototype
+# AI-Based Satellite Image Processing for Land Cover, Change Detection, Automatic Cloud Detection and Masking 
 ## B.Tech Minor Project — Shahdara, East Delhi (5 km × 5 km AOI)
 **Centred at USAR, GGSIPU (28.65° N, 77.30° E)**
 
